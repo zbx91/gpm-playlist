@@ -58,6 +58,7 @@ ROOT_URLCONF = 'scaffold.urls'
 
 WSGI_APPLICATION = 'scaffold.wsgi.application'
 
+EMAIL_BACKEND = "djangae.mail.EmailBackend"
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/

@@ -109,9 +109,6 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 
-if DEBUG:
-    CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")
-
 # sensible default CPS settings, feel free to modify them
 CSP_DEFAULT_SRC = ("'self'", "*.gstatic.com")
 CSP_STYLE_SRC = ("'self'", "fonts.googleapis.com", "*.gstatic.com")
@@ -121,5 +118,7 @@ CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "
 CSP_IMG_SRC = ("'self'", "data:", "s.ytimg.com", "*.googleusercontent.com", "*.gstatic.com")
 CSP_CONNECT_SRC = ("'self'", "plus.google.com", "www.google-analytics.com")
 
+if DEBUG:
+    CSP_STYLE_SRC = CSP_STYLE_SRC + ("'unsafe-inline'",)
 
 from djangae.contrib.gauth.settings import *

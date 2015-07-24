@@ -3,5 +3,10 @@ if [ "$#" -ne 1 ]; then
     exit 1
 fi
 
-find . -path ./sitepackages -prune -o \( -name '*.py' -o -name 'app.yaml' \) -print -exec sed -i '' "s/scaffold/$1/g" {} \;
+if [[ "$OSTYPE" == 'linux-gnu' ]]; then
+    find . -path ./sitepackages -prune -o \( -name '*.py' -o -name 'app.yaml' \) -print -exec sed -i "s/scaffold/$1/g" {} +;
+else
+    find . -path ./sitepackages -prune -o \( -name '*.py' -o -name 'app.yaml' \) -print -exec sed -i '' "s/scaffold/$1/g" {} \;
+fi
+
 mv ./scaffold $1

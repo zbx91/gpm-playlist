@@ -6,10 +6,13 @@ threadsafe: true
 
 handlers:
 
-- url: /_ah/(mapreduce|queue|warmup|internalupload).*
+- url: /_ah/(mapreduce|queue|warmup|start|stop).*
   script: scaffold.wsgi.application
   login: admin
   secure: always
+
+- url: /_ah/internalupload.*
+  script: scaffold.wsgi.application
 
 - url: /static/admin/
   static_dir: sitepackages/django/contrib/admin/static/admin/

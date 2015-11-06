@@ -26,8 +26,6 @@ SECRET_KEY = get_app_config().secret_key
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-TEMPLATE_DEBUG = True
-
 # Application definition
 
 INSTALLED_APPS = (
@@ -57,16 +55,29 @@ MIDDLEWARE_CLASSES = (
     'djangosecure.middleware.SecurityMiddleware',
 )
 
-TEMPLATE_CONTEXT_PROCESSORS = (
-    "django.contrib.auth.context_processors.auth",
-    "django.core.context_processors.debug",
-    "django.core.context_processors.i18n",
-    "django.core.context_processors.media",
-    "django.core.context_processors.static",
-    "django.core.context_processors.tz",
-    "django.contrib.messages.context_processors.messages",
-    "session_csrf.context_processor"
-)
+TEMPLATES = [
+    {
+        'BACKEND': 'django.template.backends.django.DjangoTemplates',
+        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'APP_DIRS': True,
+        'OPTIONS': {
+            'context_processors': [
+                'django.template.context_processors.debug',
+                'django.template.context_processors.request',
+                "django.contrib.auth.context_processors.auth",
+                "django.core.context_processors.debug",
+                "django.core.context_processors.i18n",
+                "django.core.context_processors.media",
+                "django.core.context_processors.static",
+                "django.core.context_processors.tz",
+                "django.contrib.messages.context_processors.messages",
+                "session_csrf.context_processor"
+            ],
+            'debug': True,
+        },
+    },
+]
+
 
 SECURE_CHECKS = [
     "djangosecure.check.sessions.check_session_cookie_secure",
@@ -114,13 +125,13 @@ if DEBUG:
     CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")
 
 # sensible default CPS settings, feel free to modify them
-CSP_DEFAULT_SRC = ("'self'", "*.gstatic.com")
-CSP_STYLE_SRC = ("'self'", "fonts.googleapis.com", "*.gstatic.com")
-CSP_FONT_SRC = ("'self'", "themes.googleusercontent.com", "*.gstatic.com")
-CSP_FRAME_SRC = ("'self'", "www.google.com", "www.youtube.com", "accounts.google.com", "apis.google.com", "plus.google.com")
-CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "ajax.googleapis.com")
-CSP_IMG_SRC = ("'self'", "data:", "s.ytimg.com", "*.googleusercontent.com", "*.gstatic.com")
-CSP_CONNECT_SRC = ("'self'", "plus.google.com", "www.google-analytics.com")
+CSP_DEFAULT_SRC = ("'self'", "*.gstatic.com", "*.darkhelm.org")
+CSP_STYLE_SRC = ("'self'", "fonts.googleapis.com", "*.gstatic.com", "*.darkhelm.org")
+CSP_FONT_SRC = ("'self'", "themes.googleusercontent.com", "*.gstatic.com", "*.darkhelm.org")
+CSP_FRAME_SRC = ("'self'", "www.google.com", "www.youtube.com", "accounts.google.com", "apis.google.com", "plus.google.com", "*.darkhelm.org")
+CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "ajax.googleapis.com", "cdnjs.cloudflare.com", "*.darkhelm.org")
+CSP_IMG_SRC = ("'self'", "data:", "s.ytimg.com", "*.googleusercontent.com", "*.gstatic.com", "*.darkhelm.org")
+CSP_CONNECT_SRC = ("'self'", "plus.google.com", "www.google-analytics.com", "*.darkhelm.org")
 
 
 from djangae.contrib.gauth.settings import *

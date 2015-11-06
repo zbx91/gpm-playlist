@@ -1,7 +1,8 @@
-from django.shortcuts import render
 from django.http import HttpResponse
-
-def index(request):
-    return HttpResponse("Testing this out.")
+from django.shortcuts import render
 
 # Create your views here.
+
+def index(request):
+    context = {}
+    return render(request, 'manager/index.html', context)

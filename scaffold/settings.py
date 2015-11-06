@@ -1,5 +1,5 @@
 """
-Django settings for playlist project.
+Django settings for scaffold project.
 
 For more information on this file, see
 https://docs.djangoproject.com/en/1.6/topics/settings/
@@ -75,8 +75,8 @@ SECURE_CHECKS = [
     "djangosecure.check.djangosecure.check_sts",
     "djangosecure.check.djangosecure.check_frame_deny",
     "djangosecure.check.djangosecure.check_ssl_redirect",
-    "playlist.checks.check_session_csrf_enabled",
-    "playlist.checks.check_csp_is_not_report_only"
+    "scaffold.checks.check_session_csrf_enabled",
+    "scaffold.checks.check_csp_is_not_report_only"
 ]
 
 CSP_REPORT_URI = reverse_lazy('report_csp')
@@ -85,9 +85,9 @@ CSP_REPORTS_LOG_LEVEL = 'warning'
 CSP_REPORTS_SAVE = True
 CSP_REPORTS_EMAIL_ADMINS = False
 
-ROOT_URLCONF = 'playlist.urls'
+ROOT_URLCONF = 'scaffold.urls'
 
-WSGI_APPLICATION = 'playlist.wsgi.application'
+WSGI_APPLICATION = 'scaffold.wsgi.application'
 
 
 # Internationalization
@@ -122,7 +122,5 @@ CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "
 CSP_IMG_SRC = ("'self'", "data:", "s.ytimg.com", "*.googleusercontent.com", "*.gstatic.com")
 CSP_CONNECT_SRC = ("'self'", "plus.google.com", "www.google-analytics.com")
 
-DGANGAE_ALLOW_USER_PRE_CREATION = True
-DGANGAE_FORCE_USER_PRE_CREATION = True
 
 from djangae.contrib.gauth.settings import *

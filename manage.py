@@ -2,11 +2,11 @@
 import os
 import sys
 
-from playlist.boot import fix_path
+from gpm-playlist.boot import fix_path
 fix_path()
 
 if __name__ == "__main__":
-    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "playlist.settings")
+    os.environ.setdefault("DJANGO_SETTINGS_MODULE", "gpm-playlist.settings")
 
     from djangae.core.management import execute_from_command_line
 

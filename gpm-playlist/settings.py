@@ -1,5 +1,5 @@
 """
-Django settings for playlist project.
+Django settings for gpm-playlist project.
 
 For more information on this file, see
 https://docs.djangoproject.com/en/1.6/topics/settings/
@@ -75,8 +75,8 @@ SECURE_CHECKS = [
     "djangosecure.check.djangosecure.check_sts",
     "djangosecure.check.djangosecure.check_frame_deny",
     "djangosecure.check.djangosecure.check_ssl_redirect",
-    "playlist.checks.check_session_csrf_enabled",
-    "playlist.checks.check_csp_is_not_report_only"
+    "gpm-playlist.checks.check_session_csrf_enabled",
+    "gpm-playlist.checks.check_csp_is_not_report_only"
 ]
 
 CSP_REPORT_URI = reverse_lazy('report_csp')
@@ -85,9 +85,9 @@ CSP_REPORTS_LOG_LEVEL = 'warning'
 CSP_REPORTS_SAVE = True
 CSP_REPORTS_EMAIL_ADMINS = False
 
-ROOT_URLCONF = 'playlist.urls'
+ROOT_URLCONF = 'gpm-playlist.urls'
 
-WSGI_APPLICATION = 'playlist.wsgi.application'
+WSGI_APPLICATION = 'gpm-playlist.wsgi.application'
 
 
 # Internationalization

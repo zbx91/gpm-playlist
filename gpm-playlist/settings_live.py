@@ -1,4 +1,4 @@
-from playlist.settings import *
+from gpm-playlist.settings import *
 
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
@@ -16,7 +16,7 @@ SECURE_REDIRECT_EXEMPT = [
     r"^_ah/"
 ]
 
-SECURE_CHECKS += ["playlist.checks.check_csp_sources_not_unsafe"]
+SECURE_CHECKS += ["gpm-playlist.checks.check_csp_sources_not_unsafe"]
 
 
 DEBUG = False

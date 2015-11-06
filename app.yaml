@@ -7,7 +7,7 @@ threadsafe: true
 handlers:
 
 - url: /_ah/(mapreduce|queue|warmup|internalupload).*
-  script: playlist.wsgi.application
+  script: gpm-playlist.wsgi.application
   login: admin
   secure: always
 
@@ -17,7 +17,7 @@ handlers:
 
 # Set Django admin to be login:admin as well as Django's is_staff restriction
 - url: /admin.*
-  script: playlist.wsgi.application
+  script: gpm-playlist.wsgi.application
   secure: always
   login: admin
 

@@ -1,6 +1,7 @@
-from scaffold.settings import *
+from playlist.settings import *
 
 SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 SECURE_HSTS_SECONDS = 2592000 #30 days
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_FRAME_DENY = True
@@ -15,7 +16,8 @@ SECURE_REDIRECT_EXEMPT = [
     r"^_ah/"
 ]
 
-SECURE_CHECKS += ["scaffold.checks.check_csp_sources_not_unsafe"]
+SECURE_CHECKS += ["playlist.checks.check_csp_sources_not_unsafe"]
+
 
 DEBUG = False
 TEMPLATE_DEBUG = False

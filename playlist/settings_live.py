@@ -19,3 +19,6 @@ SECURE_CHECKS += ["playlist.checks.check_csp_sources_not_unsafe"]
 
 DEBUG = False
 TEMPLATE_DEBUG = False
+
+DGANGAE_ALLOW_USER_PRE_CREATION = True
+DGANGAE_FORCE_USER_PRE_CREATION = True

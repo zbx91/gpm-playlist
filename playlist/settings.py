@@ -1,5 +1,5 @@
 """
-Django settings for scaffold project.
+Django settings for playlist project.
 
 For more information on this file, see
 https://docs.djangoproject.com/en/1.6/topics/settings/
@@ -75,8 +75,8 @@ SECURE_CHECKS = [
     "djangosecure.check.djangosecure.check_sts",
     "djangosecure.check.djangosecure.check_frame_deny",
     "djangosecure.check.djangosecure.check_ssl_redirect",
-    "scaffold.checks.check_session_csrf_enabled",
-    "scaffold.checks.check_csp_is_not_report_only"
+    "playlist.checks.check_session_csrf_enabled",
+    "playlist.checks.check_csp_is_not_report_only"
 ]
 
 CSP_REPORT_URI = reverse_lazy('report_csp')
@@ -85,9 +85,9 @@ CSP_REPORTS_LOG_LEVEL = 'warning'
 CSP_REPORTS_SAVE = True
 CSP_REPORTS_EMAIL_ADMINS = False
 
-ROOT_URLCONF = 'scaffold.urls'
+ROOT_URLCONF = 'playlist.urls'
 
-WSGI_APPLICATION = 'scaffold.wsgi.application'
+WSGI_APPLICATION = 'playlist.wsgi.application'
 
 
 # Internationalization

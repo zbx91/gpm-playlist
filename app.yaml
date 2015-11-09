@@ -34,3 +34,4 @@ skip_files:
     - \.storage.*
     - \.git
     - (.*)\.pyc
+    - client

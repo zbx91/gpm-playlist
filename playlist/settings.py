@@ -118,7 +118,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.6/howto/static-files/
 
-STATIC_URL = '/static/'
+STATIC_ROOT = ''.join((BASE_DIR, 'client'))
+STATIC_URL = '/client/'
 
 
 if DEBUG:
@@ -129,7 +130,7 @@ CSP_DEFAULT_SRC = ("'self'", "*.gstatic.com", "*.darkhelm.org")
 CSP_STYLE_SRC = ("'self'", "fonts.googleapis.com", "*.gstatic.com", "*.darkhelm.org")
 CSP_FONT_SRC = ("'self'", "themes.googleusercontent.com", "*.gstatic.com", "*.darkhelm.org")
 CSP_FRAME_SRC = ("'self'", "www.google.com", "www.youtube.com", "accounts.google.com", "apis.google.com", "plus.google.com", "*.darkhelm.org")
-CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "ajax.googleapis.com", "cdnjs.cloudflare.com", "*.darkhelm.org")
+CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "ajax.googleapis.com", "cdnjs.couldflare.com", "*.darkhelm.org")
 CSP_IMG_SRC = ("'self'", "data:", "s.ytimg.com", "*.googleusercontent.com", "*.gstatic.com", "*.darkhelm.org")
 CSP_CONNECT_SRC = ("'self'", "plus.google.com", "www.google-analytics.com", "*.darkhelm.org")
 

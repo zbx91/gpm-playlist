@@ -10,8 +10,8 @@
     <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
 
     <link rel='stylesheet' href='http://fonts.googleapis.com/css?family=Roboto:400,500,700,400italic'>
-    <link rel="stylesheet" href="{% static "bower_components/angular-material/angular-material.css" %}"/>
-    <link rel="stylesheet" href="{% static "assets/app.css" %}"/>
+    <link rel="stylesheet" href="{% static "manager/bower_components/angular-material/angular-material.css" %}"/>
+    <link rel="stylesheet" href="{% static "manager/assets/app.css" %}"/>
 
     <style type="text/css">
         /**
@@ -68,14 +68,14 @@
 
   </div>
 
-    <script src="{% static "bower_components/angular/angular.js" %}"></script>
-    <script src="{% static "bower_components/angular-animate/angular-animate.js" %}"></script>
-    <script src="{% static "bower_components/angular-aria/angular-aria.js" %}"></script>
-    <script type="text/javascript" src="{% static "bower_components/angular-material/angular-material.js" %}"></script>
+    <script src="{% static "manager/bower_components/angular/angular.js" %}"></script>
+    <script src="{% static "manager/bower_components/angular-animate/angular-animate.js" %}"></script>
+    <script src="{% static "manager/bower_components/angular-aria/angular-aria.js" %}"></script>
+    <script type="text/javascript" src="{% static "manager/bower_components/angular-material/angular-material.js" %}"></script>
 
-    <script src="{% static "src/users/Users.js" %}"></script>
-    <script src="{% static "src/users/UserController.js" %}"></script>
-    <script src="{% static "src/users/UserService.js" %}"></script>
+    <script src="{% static "manager/src/users/Users.js" %}"></script>
+    <script src="{% static "manager/src/users/UserController.js" %}"></script>
+    <script src="{% static "manager/src/users/UserService.js" %}"></script>
 
     <script type="text/javascript">
 
@@ -84,13 +84,13 @@
               .config(function($mdThemingProvider, $mdIconProvider){
 
                   $mdIconProvider
-                      .defaultIconSet("{% static "assets/svg/avatars.svg" %}", 128)
-                      .icon("menu"       , "{% static "assets/svg/menu.svg" %}"        , 24)
-                      .icon("share"      , "{% static "assets/svg/share.svg" %}"       , 24)
-                      .icon("google_plus", "{% static "assets/svg/google_plus.svg" %}" , 512)
-                      .icon("hangouts"   , "{% static "assets/svg/hangouts.svg" %}"    , 512)
-                      .icon("twitter"    , "{% static "assets/svg/twitter.svg" %}"     , 512)
-                      .icon("phone"      , "{% static "assets/svg/phone.svg" %}"       , 512);
+                      .defaultIconSet("{% static "manager/assets/svg/avatars.svg" %}", 128)
+                      .icon("menu"       , "{% static "manager/assets/svg/menu.svg" %}"        , 24)
+                      .icon("share"      , "{% static "manager/assets/svg/share.svg" %}"       , 24)
+                      .icon("google_plus", "{% static "manager/assets/svg/google_plus.svg" %}" , 512)
+                      .icon("hangouts"   , "{% static "manager/assets/svg/hangouts.svg" %}"    , 512)
+                      .icon("twitter"    , "{% static "manager/assets/svg/twitter.svg" %}"     , 512)
+                      .icon("phone"      , "{% static "manager/assets/svg/phone.svg" %}"       , 512);
 
                       $mdThemingProvider.theme('default')
                           .primaryPalette('brown')

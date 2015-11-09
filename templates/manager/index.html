@@ -9,7 +9,7 @@
     <meta name="description" content="">
     <meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
 
-    <link rel='stylesheet' href='//fonts.googleapis.com/css?family=Roboto:400,500,700,400italic'>
+    <link rel='stylesheet' href='//fonts.googleapis.com/css?family=Ubuntu:400,500,700,400italic'>
     <link rel="stylesheet" href='{% static "manager/bower_components/angular-material/angular-material.css" %}'/>
     <link rel="stylesheet" href='{% static "manager/assets/app.css" %}'/>
 
@@ -93,8 +93,9 @@
                       .icon("phone"      , '{% static "manager/assets/svg/phone.svg" %}'       , 512);
 
                       $mdThemingProvider.theme('default')
-                          .primaryPalette('brown')
-                          .accentPalette('red');
+                          .primaryPalette('blue')
+                          .accentPalette('blue-grey')
+                          .dark();
 
               });
 

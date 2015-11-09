@@ -65,7 +65,7 @@
 
         return $mdBottomSheet.show({
           parent: angular.element(document.getElementById('content')),
-          templateUrl: './src/users/view/contactSheet.html',
+          templateUrl: 'static/manager/src/users/view/contactSheet.html',
           controller: [ '$mdBottomSheet', ContactPanelController],
           controllerAs: "cp",
           bindToController : true,
@@ -80,10 +80,10 @@
         function ContactPanelController( $mdBottomSheet ) {
           this.user = user;
           this.actions = [
-            { name: 'Phone'       , icon: 'phone'       , icon_url: 'assets/svg/phone.svg'},
-            { name: 'Twitter'     , icon: 'twitter'     , icon_url: 'assets/svg/twitter.svg'},
-            { name: 'Google+'     , icon: 'google_plus' , icon_url: 'assets/svg/google_plus.svg'},
-            { name: 'Hangout'     , icon: 'hangouts'    , icon_url: 'assets/svg/hangouts.svg'}
+            { name: 'Phone'       , icon: 'phone'       , icon_url: 'static/manager/assets/svg/phone.svg'},
+            { name: 'Twitter'     , icon: 'twitter'     , icon_url: 'static/manager/assets/svg/twitter.svg'},
+            { name: 'Google+'     , icon: 'google_plus' , icon_url: 'static/manager/assets/svg/google_plus.svg'},
+            { name: 'Hangout'     , icon: 'hangouts'    , icon_url: 'static/manager/assets/svg/hangouts.svg'}
           ];
           this.submitContact = function(action) {
             $mdBottomSheet.hide(action);

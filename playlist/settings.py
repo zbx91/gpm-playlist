@@ -126,11 +126,11 @@ if DEBUG:
     CSP_STYLE_SRC = ("'self'", "'unsafe-inline'")
 
 # sensible default CPS settings, feel free to modify them
-CSP_DEFAULT_SRC = ("'self'", "*.gstatic.com", "*.darkhelm.org")
-CSP_STYLE_SRC = ("'self'", "fonts.googleapis.com", "*.gstatic.com", "*.darkhelm.org")
-CSP_FONT_SRC = ("'self'", "themes.googleusercontent.com", "*.gstatic.com", "*.darkhelm.org")
+CSP_DEFAULT_SRC = ("'self'", "*.gstatic.com", "*.darkhelm.org", 'gpm-playlist.appspot.com')
+CSP_STYLE_SRC = ("'self'", "fonts.googleapis.com", "*.gstatic.com", "*.darkhelm.org", "'unsafe-inline'")
+CSP_FONT_SRC = ("'self'", "themes.googleusercontent.com", "*.gstatic.com", "fonts.googleapis.com", "*.darkhelm.org")
 CSP_FRAME_SRC = ("'self'", "www.google.com", "www.youtube.com", "accounts.google.com", "apis.google.com", "plus.google.com", "*.darkhelm.org")
-CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "ajax.googleapis.com", "cdnjs.couldflare.com", "*.darkhelm.org")
+CSP_SCRIPT_SRC = ("'self'", "*.googleanalytics.com", "*.google-analytics.com", "ajax.googleapis.com", "cdnjs.couldflare.com", "*.darkhelm.org", "'unsafe-inline'")
 CSP_IMG_SRC = ("'self'", "data:", "s.ytimg.com", "*.googleusercontent.com", "*.gstatic.com", "*.darkhelm.org")
 CSP_CONNECT_SRC = ("'self'", "plus.google.com", "www.google-analytics.com", "*.darkhelm.org")
 

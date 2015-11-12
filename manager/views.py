@@ -1,6 +1,12 @@
 from google.appengine.api import users
+from google.appengine.ext import ndb
+
 from django.http import HttpResponse
 from django.shortcuts import render
+
+from core import crypt
+
+from . import models
 
 # Create your views here.
 
@@ -30,3 +36,14 @@ def user(request):
     '''.format(user=user, auth_domain=user.auth_domain(), email=user.email(), nickname=user.nickname(), user_id=user.user_id(), federated_identity=user.federated_identity(), federated_provider=user.federated_provider(), items=dir(user))
     
     return HttpResponse(resp)
+    
+def setpassword(request):
+    clear_passwd = request.GET['pw']
+    encrypted_passwd = crypt.encrypt(clear_passwd)
+    user = users.get_current_user()
+    
+    entity = models.User(id=user.email(), password=encrypted_passwd)
+    entity.put()
+    
+    return HttpResponse("Done.")
+    

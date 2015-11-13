@@ -6,6 +6,13 @@ from django.shortcuts import render
 
 from core import crypt
 
+import os
+google_path = os.path.join(os.path.split(os.path.dirname(__file__))[0], 'sitepackages', 'google')
+import google
+google.__path__.append(google_path)
+
+import gmusicapi
+
 from . import models
 
 # Create your views here.
@@ -47,3 +54,15 @@ def setpassword(request):
     
     return HttpResponse("Done.")
     
+def testsongs(request):
+    user = users.get_current_user()
+    key = ndb.Key(models.User, user.email())
+    entity = key.get()
+    encrypted_passwd = entity.password
+    clear_passwd = crypt.decrypt(encrypted_passwd)
+    api = gmusicapi.Mobileclient(debug_logging=False)
+    api.login(user.email(), clear_passwd, '364911a76fe0ffa1')  # gmusicapi.Mobileclient.FROM_MAC_ADDRESS)
+    nin_albums = set(song['album'] for batch in api.get_all_songs(incremental=True) for song in batch if song['artist'] == 'Nine Inch Nails')
+    from pprint import pformat
+    resp = "<html><head></head><body><pre>{albums}</pre></body></html>".format(albums=pformat(nin_albums))
+    return HttpResponse(resp)

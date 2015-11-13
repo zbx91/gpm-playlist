@@ -37,7 +37,7 @@ class Track(ndb.Model):
     track_number = ndb.IntegerProperty(required=False)  # for display/sorting purposes
     total_track_count = ndb.IntegerProperty(required=False)  # for display/sorting purposes
     artist = ndb.StringProperty(required=False)  # References Artist model id, for searchability
-    album_artist = ndb.StringProperty(required=False)  # References Artist model id, for searchability
+    album_artist = ndb.StringProperty(required=False)  # Not a reference
     album = ndb.StringProperty(required=False)  # References Album model id, for searchability
     year = ndb.IntegerProperty(required=False)  # For searchability
     composer = ndb.StringProperty(required=True, default='')  # For searchability

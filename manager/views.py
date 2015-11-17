@@ -1,11 +1,22 @@
+from __future__ import division
+
+import contextlib
 import datetime
+import functools
+import itertools
+import logging
 import os
+import pprint
+import time
+import urllib
 
 from google.appengine.api import users
+from google.appengine.ext import deferred
 from google.appengine.ext import ndb
 
 from django.http import HttpResponse
 from django.shortcuts import render
+from django.utils.crypto import get_random_string
 
 import requests
 
@@ -16,6 +27,7 @@ import google
 google.__path__.append(google_path)
 
 import gmusicapi
+import gmusicapi.protocol.mobileclient
 
 from . import models
 
@@ -75,117 +87,127 @@ def testssl(request):
     s = requests.Session()
     r = s.get('https://google.com')
     return HttpResponse(r.text)
-    
-    
-def load_library(request):
-    user= users.get_current_user()
-    key = ndb.Key(models.User, user.email())
-    entity = key.get()
-    encrypted_passwd = entity.password
+
+
+def chunk_loader(user_email, chunk):
+    logging.info('Processing chunk: {chunk} tracks'.format(chunk=len(chunk)))
+    tracks = []
+
+    for track in chunk:
+        entity = models.Track(
+            id=':'.join((user_email, track['id'])), # ID key contains user email and the track ID from google play music.
+            title=track['title'],
+            created=datetime.datetime.fromtimestamp(int(track['creationTimestamp']) / 1000000),
+            modified=datetime.datetime.fromtimestamp(int(track['lastModifiedTimestamp']) / 1000000),
+            play_count=int(track.get('playCount', 0)),
+            duration_millis=int(track['durationMillis']),
+            rating=int(track.get('rating', 0)),
+            artist=track['artist'],
+            album=track['album'],
+        )
+        
+        try:
+            entity.artist_art = track['artistArtRef'][0]['url']
+        except (KeyError, IndexError):
+            pass
+
+        try:
+            entity.album_art = track['albumArtRef'][0]['url']
+        except (KeyError, IndexError):
+            pass
+
+        try:
+            entity.disc_number = int(track['discNumber'])
+        except KeyError:
+            pass
+        
+        try:
+            entity.total_disc_count = int(track['totalDiscCount'])
+        except KeyError:
+            pass
+        
+        try:
+            entity.track_number = int(track['trackNumber'])
+        except KeyError:
+            pass
+        
+        try:
+            entity.total_track_count = int(track['totalTrackCount'])
+        except KeyError:
+            pass
+        
+        try:
+            entity.album_artist = track['albumArtist']
+        except KeyError:
+            pass
+        
+        try:
+            entity.year = int(track['year'])
+        except KeyError:
+            pass
+        
+        try:
+            entity.composer = track['composer']
+        except KeyError:
+            pass
+        
+        try:
+            entity.genre = track['genre']
+        except KeyError:
+            pass
+        
+        try:
+            entity.comment = track['comment']
+        except KeyError:
+            pass
+        
+        logging.info('Entry:\n{data}'.format(data=entity))
+        
+        tracks.append(entity)
+
+    logging.info('Putting {num} tracks into datastore.'.format(num=len(tracks)))
+    futures = ndb.put_multi_async(tracks)
+
+    ndb.Future.wait_all(futures)
+    logging.info('Completed batch: {count} tracks processed.'.format(count=len(tracks)))
+
+
+@contextlib.contextmanager
+def musicapi_connector(user_email, encrypted_passwd):
     clear_passwd = crypt.decrypt(encrypted_passwd)
     api = gmusicapi.Mobileclient(debug_logging=False)
-    api.login(user.email(), clear_passwd, '364911a76fe0ffa1')
-    track_gen = (song for batch in api.get_all_songs(incremental=True) for song in batch)
-    artists = {}
-    albums = {}
-    entity_batch = []
-    for count, track in enumerate(track_gen):
-        if count and not count % 1000:
-            ndb.put_multi(entity_batch)
-            entity_batch = []
-            
-        try:
-            if track['artistId'] and track['artistId'][0] not in artists:
-                artist_data = {'id': track['artistId'][0], 'name': track['artist']}
-    
-                try:
-                    artist_data['art'] = track['artistArtRef'][0]['url']
-                    
-                except (KeyError, IndexError):
-                    pass
-            
-            artists[track['artistId'][0]] = models.Artist(**artist_data)
-        except KeyError:
-            pass
+    try:
+        api.login(user_email, clear_passwd, get_random_string(16, '1234567890abcdef'))
+        yield api
+    finally:
+        api.logout()
 
-        if track['albumId'] and track['albumId'] not in albums:
-            album_data = {'id': track['albumId'], 'name': track['album']}
+def get_batch(user_email, encrypted_passwd, _token=None, _num=1):
+    logging.info('Getting batch #{num}'.format(num=_num))
+    chunk_size = 100
+    with musicapi_connector(user_email, encrypted_passwd) as api:
+        results = api._make_call(gmusicapi.protocol.mobileclient.ListTracks, start_token=_token, max_results=chunk_size)
+        new_token = results.get('nextPageToken', None)
+        batch = tuple(
+            item
+            for item in results['data']['items']
+            if not item.get('deleted', False)
+        )
+        del results
+        deferred.defer(chunk_loader, user_email, batch)
+        if new_token is not None:
+            deferred.defer(get_batch, user_email, crypt.encrypt(crypt.decrypt(encrypted_passwd)), _token=new_token, _num=_num+1)
+    logging.info('Batch #{num} loaded, {chunk_size} tracks queued for processing.'.format(num=_num, chunk_size=chunk_size))
 
-            try:
-                album_data['art'] = track['albumArtRef'][0]['url']
-                
-            except (KeyError, IndexError):
-                pass
-            
-            albums[track['albumId']] = models.Album(**album_data)
-            
-        entity_data = {
-            'id': track['id'],
-            'title': track['title'],
-            'created': datetime.datetime.fromtimestamp(int(track['creationTimestamp']) / 1000000),
-            'modified': datetime.datetime.fromtimestamp(int(track['lastModifiedTimestamp']) / 1000000),
-            'play_count': int(track.get('playCount', 0)),
-            'duration_millis': int(track['durationMillis']),
-            'rating': int(track.get('rating', 0)),
-            'artist': track['artistId'][0],
-            'album': track['albumId'],
-        }
-        
-        try:
-            entity_data['disc_number'] = int(track['discNumber'])
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['total_disc_count'] = int(track['totalDiscCount'])
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['track_number'] = int(track['trackNumber'])
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['total_track_count'] = int(track['totalTrackCount'])
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['album_artist'] = track['albumArtist']
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['year'] = int(track['year'])
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['composer'] = track['composer']
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['genre'] = track['genre']
-        except KeyError:
-            pass
-        
-        try:
-            entity_data['comment'] = track['comment']
-        except KeyError:
-            pass
-        
-        entity_batch.append(models.Track(**entity_data))
 
-    if entity_batch:
-        ndb.put_multi(entity_batch)
-        
-    ndb.put_multi(artists.values())
-    ndb.put_multi(albums.values())
-    
-    return HttpResponse('<html><body><ul><li>Tracks: {tracks}</li><li>Artists: {artists}</li><li>Albums: {albums}</li></ul></body></html>'.format(
-        tracks=count + 1,
-        artists=len(artists),
-        albums=len(albums),
-    ))
+def load_library(request):
+    logging.info('Starting load_library()')
+    user = users.get_current_user()
+    user_email = user.email()
+    key = ndb.Key(models.User, user_email)
+    entity = key.get()
+    encrypted_passwd = entity.password
+    deferred.defer(get_batch, user_email, encrypted_passwd)
+    logging.info('load_library() finished.')
+
+    return HttpResponse('<html><body><p>Starting music loading process...</p></body></html>')

@@ -3,16 +3,6 @@ from google.appengine.ext import ndb
 # Create your models here.
 # Note, using Google App Engine NDB models here, rather than django ones.
 
-class Artist(ndb.Model):
-    name = ndb.StringProperty(required=True)
-    art = ndb.StringProperty(indexed=False, required=False)
-
-
-class Album(ndb.Model):
-    name = ndb.StringProperty(required=True)
-    art = ndb.StringProperty(indexed=False, required=False)
-
-
 class Partition(ndb.Model):
     name = ndb.StringProperty(required=True)
 
@@ -30,15 +20,19 @@ class Holiday(ndb.Model):
 class User(ndb.Model):
     password = ndb.StringProperty(required=False)
 
+
 class Track(ndb.Model):
+
     title = ndb.StringProperty(required=True)  # For searchability
     disc_number = ndb.IntegerProperty(required=False)  # for display/sorting purposes
     total_disc_count = ndb.IntegerProperty(required=False)  # for display/sorting purposes
     track_number = ndb.IntegerProperty(required=False)  # for display/sorting purposes
     total_track_count = ndb.IntegerProperty(required=False)  # for display/sorting purposes
-    artist = ndb.StringProperty(required=False)  # References Artist model id, for searchability
-    album_artist = ndb.StringProperty(required=False)  # Not a reference
-    album = ndb.StringProperty(required=False)  # References Album model id, for searchability
+    artist = ndb.StringProperty(required=False)  # for display/sorting purposes, name of the artist
+    artist_art = ndb.StringProperty(indexed=False, required=False)  # for display purposes, url to artist art
+    album_artist = ndb.StringProperty(required=False)  # name of the artist
+    album = ndb.StringProperty(required=False)  # for display/sorting purposes, name of the album
+    album_art = ndb.StringProperty(indexed=False, required=False) # for display purposes, url to album art
     year = ndb.IntegerProperty(required=False)  # For searchability
     composer = ndb.StringProperty(required=True, default='')  # For searchability
     genre = ndb.StringProperty(required=True, default='')  # For searchability

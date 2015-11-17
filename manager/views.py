@@ -89,7 +89,7 @@ def testssl(request):
     return HttpResponse(r.text)
 
 
-def chunk_loader(user_email, chunk):
+def chunk_loader(user_email, chunk, final):
     logging.info('Processing chunk: {chunk} tracks'.format(chunk=len(chunk)))
     tracks = []
 
@@ -170,6 +170,9 @@ def chunk_loader(user_email, chunk):
 
     ndb.Future.wait_all(futures)
     logging.info('Completed batch: {count} tracks processed.'.format(count=len(tracks)))
+    
+    if final is not None:
+        logging.info('All batches completed, total tracks processed: {num_tracks}'.format(num_tracks=final))
 
 
 @contextlib.contextmanager
@@ -182,9 +185,9 @@ def musicapi_connector(user_email, encrypted_passwd):
     finally:
         api.logout()
 
-def get_batch(user_email, encrypted_passwd, _token=None, _num=1):
+def get_batch(user_email, encrypted_passwd, _token=None, _num=1, _num_tracks=0):
     logging.info('Getting batch #{num}'.format(num=_num))
-    chunk_size = 100
+    chunk_size = 200
     with musicapi_connector(user_email, encrypted_passwd) as api:
         results = api._make_call(gmusicapi.protocol.mobileclient.ListTracks, start_token=_token, max_results=chunk_size)
         new_token = results.get('nextPageToken', None)
@@ -194,10 +197,12 @@ def get_batch(user_email, encrypted_passwd, _token=None, _num=1):
             if not item.get('deleted', False)
         )
         del results
-        deferred.defer(chunk_loader, user_email, batch)
-        if new_token is not None:
-            deferred.defer(get_batch, user_email, crypt.encrypt(crypt.decrypt(encrypted_passwd)), _token=new_token, _num=_num+1)
-    logging.info('Batch #{num} loaded, {chunk_size} tracks queued for processing.'.format(num=_num, chunk_size=chunk_size))
+    _num_tracks += len(batch)
+    final_track_count = _num_tracks if new_token is None else None
+    deferred.defer(chunk_loader, user_email, batch, final_track_count)
+    if new_token is not None:
+        deferred.defer(get_batch, user_email, crypt.encrypt(crypt.decrypt(encrypted_passwd)), _token=new_token, _num=_num+1, _num_tracks=_num_tracks)
+    logging.info('Batch #{num} loaded, {chunk_size} tracks queued for processing, {num_tracks} tracks total.'.format(num=_num, chunk_size=len(batch), num_tracks=_num_tracks))
 
 
 def load_library(request):

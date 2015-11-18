@@ -13,14 +13,14 @@ except ImportError:
     pass
 
 
-def _get_key():
+def _get_key(user_id):
     try:
         return _get_key.key
 
     except AttributeError:
         sha = Crypto.Hash.SHA256.new()
         try:
-            sha.update(boot.get_app_config().secret_key)
+            sha.update('::'.join((boot.get_app_config().secret_key, user_id)))
 
         except (NameError, TypeError, AttributeError):
             sha.update(__name__)
@@ -29,9 +29,9 @@ def _get_key():
         return _get_key.key
 
 
-def encrypt(data):
+def encrypt(data, user_id=None):
     iv = Crypto.Random.new().read(Crypto.Cipher.AES.block_size)
-    cipher = Crypto.Cipher.AES.new(_get_key(), Crypto.Cipher.AES.MODE_CFB, iv)
+    cipher = Crypto.Cipher.AES.new(_get_key(user_id), Crypto.Cipher.AES.MODE_CFB, iv)
     compressed = zlib.compress(data)
     crc = zlib.crc32(compressed)
     packed_crc = struct.pack('>i', crc)
@@ -40,10 +40,10 @@ def encrypt(data):
     return base64.b64encode(msg)
 
 
-def decrypt(data):
+def decrypt(data, user_id=None):
     decoded = base64.b64decode(data)
     iv, encrypted = decoded[:16], decoded[16:]
-    cipher = Crypto.Cipher.AES.new(_get_key(), Crypto.Cipher.AES.MODE_CFB, iv)
+    cipher = Crypto.Cipher.AES.new(_get_key(user_id), Crypto.Cipher.AES.MODE_CFB, iv)
     decrypted = cipher.decrypt(encrypted)
     packed_crc, compressed = decrypted[:4], decrypted[4:]
     (crc, ) = struct.unpack('>i', packed_crc)

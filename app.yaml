@@ -32,6 +32,16 @@ handlers:
     secure: always
     login: admin
 
+  - url: /cron/.*
+    script: playlist.wsgi.application
+    secure: always
+    login: admin
+
+  - url: /manager/.*
+    script: playlist.wsgi.application
+    secure: always
+    login: required
+
   - url: /.*
     script: playlist.wsgi.application
     secure: always

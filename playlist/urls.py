@@ -20,4 +20,6 @@ urlpatterns = patterns('',
     url(r'^auth/', include('djangae.contrib.gauth.urls')),
     
     url(r'^manager/', include('manager.urls')),
+    
+    url(r'^cron/', include('manager.cron_urls'))
 )

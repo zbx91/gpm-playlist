@@ -5,15 +5,10 @@ on the taskqueue quickly and easily.
 
 This follows a very specific set of steps:
 
-    1. Delete all existing track entities in the models.Track model for the
-       given user.
-    2. Change the 'exists' property for all entities in the models.TrackLists
-       model for the given user to False.
-    3. Load and process all tracks from Google Play Music for the given user,
-       placing them into the models.Track model, and setting them in the
-       models.TrackLists model with exists = True.
-    4. Delete all entities in models.TrackLists for the given user with
-       exists = False.
+    1. Load and process all tracks from Google Play Music for the given user,
+       placing them into models.Track, and setting them in models.TrackLists.
+    2. Delete all un-touched tracks (no longer in library)
+    3. Delete all un-touched track lists (no longer in library)
        
 This also keeps track of the number of tracks that were loaded, as well as when
 the library loading started & stopped (plus if it is in the midst of loading
@@ -54,6 +49,14 @@ import gmusicapi.protocol.mobileclient
 
 from core import crypt
 from . import models
+
+
+@contextlib.contextmanager
+def suppress(*exceptions):
+    try:
+        yield
+    except exceptions:
+        pass
 
 
 def clean_track_lists(user_id, start):
@@ -134,7 +137,6 @@ def clean_tracks(user_id, start):
         )
         deferred.defer(clean_track_lists, user_id, start)
 
-
 def load_batch(user_id, start, chunk, final):
     '''
     Loads a batch of tracks into models.Track entities.
@@ -159,63 +161,40 @@ def load_batch(user_id, start, chunk, final):
             rating=int(track.get('rating', 0)),
             artist=track['artist'],
             album=track['album'],
-            touched=datetime.datetime.now(),
         )
         
-        try:
+        with suppress(KeyError, IndexError):
             entity.artist_art = track['artistArtRef'][0]['url']
-        except (KeyError, IndexError):
-            pass
 
-        try:
+        with suppress(KeyError, IndexError):
             entity.album_art = track['albumArtRef'][0]['url']
-        except (KeyError, IndexError):
-            pass
 
-        try:
+        with suppress(KeyError):
             entity.disc_number = int(track['discNumber'])
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.total_disc_count = int(track['totalDiscCount'])
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.track_number = int(track['trackNumber'])
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.total_track_count = int(track['totalTrackCount'])
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.album_artist = track['albumArtist']
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.year = int(track['year'])
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.composer = track['composer']
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.genre = track['genre']
-        except KeyError:
-            pass
         
-        try:
+        with suppress(KeyError):
             entity.comment = track['comment']
-        except KeyError:
-            pass
         
         logging.debug('Entry:\n{data}'.format(data=entity))
         
@@ -224,7 +203,6 @@ def load_batch(user_id, start, chunk, final):
         list_entity = models.TrackLists(
             id=track['id'],
             user=user_id,
-            touched=datetime.datetime.now()
         )
         batch.append(list_entity)
 

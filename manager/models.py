@@ -15,7 +15,7 @@ class User(ndb.Model):
 
 class Track(ndb.Model):
     user = ndb.StringProperty(required=True)
-    touched = ndb.DateTimeProperty(required=True)  # For finding/removing deleted tracks.
+    touched = ndb.DateTimeProperty(required=True, auto_now=True)  # For finding/removing deleted tracks.
     title = ndb.StringProperty(required=True)  # For searchability
     disc_number = ndb.IntegerProperty()  # for display/sorting purposes
     total_disc_count = ndb.IntegerProperty()  # for display/sorting purposes
@@ -53,6 +53,6 @@ class Holiday(ndb.Model):
     
 class TrackLists(ndb.Model):
     user = ndb.StringProperty(required=True)
-    touched = ndb.DateTimeProperty(required=True)
+    touched = ndb.DateTimeProperty(required=True, auto_now=True)
     partition = ndb.StringProperty()  # My field! Referemces Partition model id
     holidays = ndb.StringProperty(repeated=True)  # My field! References Holiday model id

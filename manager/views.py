@@ -43,7 +43,16 @@ def user(request):
             </pre>
         </body>
     </html>
-    '''.format(user=user, auth_domain=user.auth_domain(), email=user.email(), nickname=user.nickname(), user_id=user.user_id(), federated_identity=user.federated_identity(), federated_provider=user.federated_provider(), items=dir(user))
+    '''.format(
+        user=user,
+        auth_domain=user.auth_domain(),
+        email=user.email(),
+        nickname=user.nickname(),
+        user_id=user.user_id(),
+        federated_identity=user.federated_identity(),
+        federated_provider=user.federated_provider(),
+        items=dir(user)
+    )
     
     return HttpResponse(resp)
     
@@ -55,25 +64,43 @@ def setpassword(request):
     encrypted_passwd = crypt.encrypt(clear_passwd, user_id)
     
     encrypted_email = crypt.encrypt(user.email(), user_id)
-    entity = models.User(id=user_id, email=encrypted_email, password=encrypted_passwd)
+    entity = models.User(
+        id=user_id,
+        email=encrypted_email,
+        password=encrypted_passwd
+    )
     entity.put()
     
     return HttpResponse("Done.")
 
 
-def autoload_libraries(request):  # Cron
+def autoload_libraries(request):  # Cron Job.
     updates = []
     for user in models.User.query():
         if user.updating:
             continue
         user.updating = True
-        user.update_start = datetime.datetime.now()
+        start = user.update_start = datetime.datetime.now()
         del user.update_stop
         updates.append(user)
-        deferred.defer(lib_updater.erase_library, user.key.id(), crypt.encrypt(crypt.decrypt(user.password, user.key.id()), user.key.id()))
+        user_id = user.key.id()
+        deferred.defer(
+            lib_updater.get_batch,
+            user_id,
+            start,
+            crypt.encrypt(crypt.decrypt(user.password, user_id), user_id)
+        )
     
     if updates:
         futures = ndb.put_multi_async(updates)
         ndb.Future.wait_all(futures)
         
-    return HttpResponse('<html><body><p>Starting music loading process for {num} user(s)...</p></body></html>'.format(num=len(updates)), status=202)
+    return HttpResponse(
+        ' '.join((
+            '<html><body><p>Starting music loading process',
+            'for {num} user(s)...</p></body></html>'
+        )).format(
+            num=len(updates)
+        ),
+        status=202
+    )

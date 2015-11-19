@@ -76,4 +76,4 @@ def autoload_libraries(request):  # Cron
         futures = ndb.put_multi_async(updates)
         ndb.Future.wait_all(futures)
         
-    return HttpResponse('<html><body><p>Starting music loading process for {num} user(s)...</p></body></html>'.format(num=len(updates)))
+    return HttpResponse('<html><body><p>Starting music loading process for {num} user(s)...</p></body></html>'.format(num=len(updates)), status_code=202)

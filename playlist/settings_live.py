@@ -12,7 +12,8 @@ CSRF_COOKIE_SECURE = True
 SECURE_REDIRECT_EXEMPT = [
     # App Engine doesn't use HTTPS internally, so the /_ah/.* URLs need to be exempt.
     # djangosecure compares these to request.path.lstrip("/"), hence the lack of preceding /
-    r"^_ah/"
+    r"^_ah/",
+    r'^cron/',  # cron cannot use HTTPS
 ]
 
 SECURE_CHECKS += ["playlist.checks.check_csp_sources_not_unsafe"]

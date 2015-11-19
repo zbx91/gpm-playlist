@@ -1,3 +1,33 @@
+'''
+Simple module handling the processing of track libraries. This works with the
+GAE taskqueue system, relying on the deferred.defer() function that places tasks
+on the taskqueue quickly and easily.
+
+This follows a very specific set of steps:
+
+    1. Delete all existing track entities in the models.Track model for the
+       given user.
+    2. Change the 'exists' property for all entities in the models.TrackLists
+       model for the given user to False.
+    3. Load and process all tracks from Google Play Music for the given user,
+       placing them into the models.Track model, and setting them in the
+       models.TrackLists model with exists = True.
+    4. Delete all entities in models.TrackLists for the given user with
+       exists = False.
+       
+This also keeps track of the number of tracks that were loaded, as well as when
+the library loading started & stopped (plus if it is in the midst of loading
+currently)
+
+.. note:: 
+
+    There is a cron job that starts loading all of the libraries for all users
+    at midnight (Google Time, IE: Pacific Time). This is an expensive process,
+    with a lot of Datastore writes happening As a result, when/if the app
+    becomes public, this might require ther to be a fee for users to actually
+    use this service, just to pay the bill.
+'''
+
 from __future__ import division
 
 import contextlib

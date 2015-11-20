@@ -99,7 +99,8 @@ def load_batch(user_id, start, chunk, final):
 
     for track in chunk:
         entity = models.Track(
-            id=ndb.Key(flat=[models.Track, track['id']], parent=parent_key),
+            parent=parent_key,
+            id=track['id'],
             title=track['title'],
             created=datetime.datetime.fromtimestamp(
                 int(track['creationTimestamp']) / 1000000

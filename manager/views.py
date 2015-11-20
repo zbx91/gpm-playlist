@@ -83,12 +83,13 @@ def autoload_libraries(request):  # Cron Job.
         start = user.update_start = datetime.datetime.now()
         del user.update_stop
         updates.append(user)
-        user_id = user.key.id()
+        user_id = user.key.urlsafe()
+        uid = user.key.id()
         deferred.defer(
             lib_updater.get_batch,
             user_id,
             start,
-            crypt.encrypt(crypt.decrypt(user.password, user_id), user_id)
+            crypt.encrypt(crypt.decrypt(user.password, uid), uid)
         )
     
     if updates:
@@ -106,42 +107,6 @@ def autoload_libraries(request):  # Cron Job.
     )
     
     
-def erase_track_lists(user_id):
-    '''
-    Removes all models.TrackList entities for the given user with
-    exists = False, in batches.
-    '''
-    
-    batch_size = 750
-    logging.info(
-        ' '.join((
-            'Attempting to erase {size} track',
-            'list entries from library...'
-        )).format(
-            size=batch_size
-        )
-    )
-    keys = models.TrackLists.query(
-        models.TrackLists.user == user_id
-    ).fetch(batch_size, keys_only=True)
-    futures = ndb.delete_multi_async(keys)
-    ndb.Future.wait_all(futures)
-    if keys:
-        logging.info(
-            ' '.join((
-                'Erased {num} track lists entries,',
-                'attempting to erase more...'
-            )).format(
-                num=len(keys)
-            )
-        )
-        deferred.defer(erase_track_lists, user_id)
-        
-    else:
-        logging.info('Erased all track list entries from library.')
-        logging.info('Library erasing complete.')
-     
-        
 def erase_tracks(user_id):
     batch_size = 750
     logging.info(
@@ -149,9 +114,8 @@ def erase_tracks(user_id):
             size=batch_size
         )
     )
-    keys = models.Track.query(
-        models.Track.user == user_id
-    ).fetch(batch_size, keys_only=True)
+    parent_key = ndb.Key(urlsafe=user_id)
+    keys = models.Track.query().ancestor(parent_key).fetch(batch_size, keys_only=True)
     futures = ndb.delete_multi_async(keys)
     ndb.Future.wait_all(futures)
     if keys:
@@ -162,20 +126,15 @@ def erase_tracks(user_id):
         )
         deferred.defer(erase_tracks, user_id)
     else:
-        logging.info(
-            ' '.join((
-                'Erased all tracks from library.',
-                'Erasing track list entries.'
-            ))
-        )
-        deferred.defer(erase_track_lists, user_id)
-        
+        logging.info('Erased all tracks from library.')
+        logging.info('Library erasing complete.')
+
 
 def erase_library(request):
     user = users.get_current_user()
-    user_id = user.user_id()
+    user_id = ndb.Key(models.User, user.user_id())
     logging.info('Library erasing starting...')
-    deferred.defer(erase_tracks, user_id)
+    deferred.defer(erase_tracks, user_id.urlsafe())
     return HttpResponse(
-        '<html><body><p>Starting to erase library for user {user_id}</p></body></html>'.format(user_id=user_id)
+        '<html><body><p>Starting to erase library for user {user}</p></body></html>'.format(user=user.email())
     )

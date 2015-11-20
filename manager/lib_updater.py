@@ -6,9 +6,8 @@ on the taskqueue quickly and easily.
 This follows a very specific set of steps:
 
     1. Load and process all tracks from Google Play Music for the given user,
-       placing them into models.Track, and setting them in models.TrackLists.
+       placing them into models.Track.
     2. Delete all un-touched tracks (no longer in library)
-    3. Delete all un-touched track lists (no longer in library)
        
 This also keeps track of the number of tracks that were loaded, as well as when
 the library loading started & stopped (plus if it is in the midst of loading
@@ -59,50 +58,6 @@ def suppress(*exceptions):
         pass
 
 
-def clean_track_lists(user_id, start):
-    '''
-    Removes all models.TrackList entities for the given user with
-    exists = False, in batches.
-    '''
-    
-    batch_size = 750
-    logging.info(
-        ' '.join((
-            'Attempting to clean {size} deleted track',
-            'list entries from library...'
-        )).format(
-            size=batch_size
-        )
-    )
-    keys = models.TrackLists.query(
-        ndb.AND(
-            models.TrackLists.user == user_id,
-            models.TrackLists.touched < start
-        )
-    ).fetch(batch_size, keys_only=True)
-    futures = ndb.delete_multi_async(keys)
-    ndb.Future.wait_all(futures)
-    if keys:
-        logging.info(
-            ' '.join((
-                'Cleaned {num} deleted track lists entries,',
-                'attempting to clean more...'
-            )).format(
-                num=len(keys)
-            )
-        )
-        deferred.defer(clean_track_lists, user_id, start)
-        
-    else:
-        logging.info('Cleaned all deleted track list entries from library.')
-        key = ndb.Key(models.User, user_id)
-        entity = key.get()
-        entity.updating = False
-        entity.update_stop = datetime.datetime.now()
-        entity.put()
-        logging.info('Library updating complete.')
-
-
 def clean_tracks(user_id, start):
     '''
     Erases a batch of models.Track entities for a given user from the datastore.
@@ -113,12 +68,8 @@ def clean_tracks(user_id, start):
             size=batch_size
         )
     )
-    keys = models.Track.query(
-        ndb.AND(
-            models.Track.user == user_id,
-            models.Track.touched < start
-        )
-    ).fetch(batch_size, keys_only=True)
+    parent_key = ndb.Key(urlsafe=user_id)
+    keys = models.Track.query().ancestor(parent_key).fetch(batch_size, keys_only=True)
     futures = ndb.delete_multi_async(keys)
     ndb.Future.wait_all(futures)
     if keys:
@@ -128,27 +79,27 @@ def clean_tracks(user_id, start):
             )
         )
         deferred.defer(clean_tracks, user_id, start)
+        
     else:
-        logging.info(
-            ' '.join((
-                'Cleaned all deleted tracks from library.',
-                'Cleaning up track list entries.'
-            ))
-        )
-        deferred.defer(clean_track_lists, user_id, start)
-
+        logging.info('Cleaned all deleted tracks from library.')
+        entity = parent_key.get()
+        entity.updating = False
+        entity.update_stop = datetime.datetime.now()
+        entity.put()
+        logging.info('Library updating complete.')
+        
 def load_batch(user_id, start, chunk, final):
     '''
     Loads a batch of tracks into models.Track entities.
-    Sets the corresponding entities in models.TrackLists to exists = True.
     '''
     logging.info('Processing chunk: {chunk} tracks'.format(chunk=len(chunk)))
     batch = []
 
+    parent_key = ndb.Key(urlsafe=user_id)  # Library tracks tied to a user.
+
     for track in chunk:
         entity = models.Track(
-            id=track['id'],
-            user=user_id,
+            id=ndb.Key(flat=[models.Track, track['id']], parent=parent_key),
             title=track['title'],
             created=datetime.datetime.fromtimestamp(
                 int(track['creationTimestamp']) / 1000000
@@ -199,12 +150,6 @@ def load_batch(user_id, start, chunk, final):
         logging.debug('Entry:\n{data}'.format(data=entity))
         
         batch.append(entity)
-        
-        list_entity = models.TrackLists(
-            id=track['id'],
-            user=user_id,
-        )
-        batch.append(list_entity)
 
     logging.info(
         'Putting {num} tracks into datastore.'.format(
@@ -221,8 +166,7 @@ def load_batch(user_id, start, chunk, final):
     )
     
     if final is not None:
-        key = ndb.Key(models.User, user_id)
-        entity = key.get()
+        entity = parent_key.get()
         entity.num_tracks = final
         entity.put()
         logging.info(
@@ -243,10 +187,10 @@ def musicapi_connector(user_id, encrypted_passwd):
     Context manager that handles login/logout operations for Google Play Music
     using the gmusicapi.Mobileclient interface
     '''
-    key = ndb.Key(models.User, user_id)
-    user = key.get()
-    user_email = crypt.decrypt(user.email, user_id)
-    clear_passwd = crypt.decrypt(encrypted_passwd, user_id)
+    user = ndb.Key(urlsafe=user_id).get()
+    uid = user.key.id()
+    user_email = crypt.decrypt(user.email, uid)
+    clear_passwd = crypt.decrypt(encrypted_passwd, uid)
     api = gmusicapi.Mobileclient(debug_logging=False)
     try:
         api.login(
@@ -289,11 +233,12 @@ def get_batch(
     final_track_count = _num_tracks if new_token is None else None
     deferred.defer(load_batch, user_id, start, batch, final_track_count)
     if new_token is not None:
+        uid = ndb.Key(urlsafe=user_id).id()
         deferred.defer(
             get_batch,
             user_id,
             start,
-            crypt.encrypt(crypt.decrypt(encrypted_passwd, user_id), user_id),
+            crypt.encrypt(crypt.decrypt(encrypted_passwd, uid), uid),
             _token=new_token,
             _num=_num+1,
             _num_tracks=_num_tracks

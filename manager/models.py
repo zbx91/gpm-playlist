@@ -13,8 +13,21 @@ class User(ndb.Model):
     num_tracks = ndb.IntegerProperty()
 
 
+class Partition(ndb.Model):
+    name = ndb.StringProperty(required=True)
+
+
+class DateRange(ndb.Model):
+    start = ndb.DateProperty(required=True)
+    end = ndb.DateProperty(required=True)
+
+
+class Holiday(ndb.Model):
+    name = ndb.StringProperty(required=True)
+    ranges = ndb.StructuredProperty(DateRange, repeated=True)
+
+
 class Track(ndb.Model):
-    user = ndb.StringProperty(required=True)
     touched = ndb.DateTimeProperty(required=True, auto_now=True)  # For finding/removing deleted tracks.
     title = ndb.StringProperty(required=True)  # For searchability
     disc_number = ndb.IntegerProperty()  # for display/sorting purposes
@@ -35,24 +48,5 @@ class Track(ndb.Model):
     duration_millis = ndb.IntegerProperty(indexed=False, required=True)  # Used to help determine the number of tracks to play
     rating = ndb.IntegerProperty(required=True, default=0, choices=(0, 1, 2, 3, 4, 5))  # Used in subgroup processing
     comment = ndb.StringProperty(indexed=False, default='')  # Used for possibly figuring out rating, partition, and holidays
-
-
-class Partition(ndb.Model):
-    name = ndb.StringProperty(required=True)
-
-
-class DateRange(ndb.Model):
-    start = ndb.DateProperty(required=True)
-    end = ndb.DateProperty(required=True)
-
-
-class Holiday(ndb.Model):
-    name = ndb.StringProperty(required=True)
-    ranges = ndb.StructuredProperty(DateRange, repeated=True)
-
-    
-class TrackLists(ndb.Model):
-    user = ndb.StringProperty(required=True)
-    touched = ndb.DateTimeProperty(required=True, auto_now=True)
     partition = ndb.StringProperty()  # My field! Referemces Partition model id
     holidays = ndb.StringProperty(repeated=True)  # My field! References Holiday model id

@@ -32,13 +32,3 @@ indexes:
   properties:
   - name: app
   - name: name
-
-- kind: Track
-  properties:
-  - name: user
-  - name: touched
-  
-- kind: TrackLists
-  properties:
-  - name: user
-  - name: touched

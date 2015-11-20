@@ -154,7 +154,7 @@ def load_batch(user_id, start, chunk, final):
 
     logging.info(
         'Putting {num} tracks into datastore.'.format(
-            num=len(batch) // 2
+            num=len(batch)
         )
     )
     futures = ndb.put_multi_async(batch)
@@ -162,7 +162,7 @@ def load_batch(user_id, start, chunk, final):
     ndb.Future.wait_all(futures)
     logging.info(
         'Completed batch: {count} tracks processed.'.format(
-            count=len(batch) // 2
+            count=len(batch)
         )
     )
     

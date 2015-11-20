@@ -60,7 +60,8 @@ def suppress(*exceptions):
 
 def clean_tracks(user_id, start):
     '''
-    Erases a batch of models.Track entities for a given user from the datastore.
+    Erases a batch of models.Track entities for a given user from the datastore,
+    if the entity was not touched in the last update.
     '''
     batch_size = 750
     logging.info(
@@ -69,7 +70,10 @@ def clean_tracks(user_id, start):
         )
     )
     parent_key = ndb.Key(urlsafe=user_id)
-    keys = models.Track.query().ancestor(parent_key).fetch(batch_size, keys_only=True)
+    keys = models.Track.query(
+        models.Track.touched < start,
+        ancestor=parent_key
+    ).fetch(batch_size, keys_only=True)
     futures = ndb.delete_multi_async(keys)
     ndb.Future.wait_all(futures)
     if keys:

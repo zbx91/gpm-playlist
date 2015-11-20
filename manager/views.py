@@ -115,7 +115,7 @@ def erase_tracks(user_id):
         )
     )
     parent_key = ndb.Key(urlsafe=user_id)
-    keys = models.Track.query().ancestor(parent_key).fetch(batch_size, keys_only=True)
+    keys = models.Track.query(ancestor=parent_key).fetch(batch_size, keys_only=True)
     futures = ndb.delete_multi_async(keys)
     ndb.Future.wait_all(futures)
     if keys:

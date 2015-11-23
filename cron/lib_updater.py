@@ -28,6 +28,7 @@ from __future__ import division
 
 import contextlib
 import datetime
+import itertools
 import logging
 import os
 
@@ -49,7 +50,7 @@ import gmusicapi.protocol.mobileclient
 
 
 from core import crypt
-from . import models
+from playlist import models
 
 
 @contextlib.contextmanager
@@ -129,55 +130,56 @@ def load_batch(user_id, start, chunk, final):
     '''
     logging.info('Processing chunk: {chunk} tracks'.format(chunk=len(chunk)))
     batch = []
-    deletes = []
-    check_keys = []
+    futures = []
 
     parent_key = ndb.Key(urlsafe=user_id)  # Library tracks tied to a user.
 
-    for track in chunk:
-        if track['deleted']:
-            logging.debug('Deleting track: {id}'.format(id=track['id']))
-            deletes.append(
-                ndb.Key(
-                    flat=[models.Track, track['id']],
-                    parent=parent_key
-                )
-            )
-            
-        elif int(track['lastModifiedTimestamp']) >= start:
-            batch.append(make_entity(parent_key, track))
-            
-        else:
-            check_keys.append(
-                ndb.Key(
-                    flat=[models.Track, track['id']],
-                    parent=parent_key
-                )
-            )
-
-    if check_keys:
-        existing_ids = set(
-            item.key.id()
-            for item in ndb.get_multi(check_keys)
+    # Set up keys, and figure out tests for placing into buckets.
+    key_gen = (
+        (
+            ndb.Key(flat=[models.Track, track['id']], parent=parent_key),
+            track['deleted'],
+            int(track['lastModifiedTimestamp']) >= start
         )
-        check_ids = set(item.id() for item in check_keys)
+        for track in chunk
+    )
+
+    # Place keys into buckets
+    deletes, batch_ids, check_ids = zip(*tuple(
+        (
+            key if deleted else None,
+            key if not deleted and modified else None,
+            key if not (deleted or modified) else None,
+        )
+        for key, deleted, modified in key_gen
+    ))
+    
+    # Clean up buckets
+    deletes = tuple(key for key in deletes if key is not None)
+    batch_ids = tuple(key for key in batch_ids if key is not None)
+    check_ids = tuple(key for key in check_ids if key is not None)
+
+    if check_ids:
+        existing_ids = set(item.key.id() for item in ndb.get_multi(check_ids))
+        check_ids = set(item.id() for item in check_ids)
         new_ids = tuple(check_ids - existing_ids)
         del existing_ids
-        del check_ids
-        new_track_gen = (
-            track
-            for track in chunk
-            if track['id'] in new_ids
+        check_ids = (
+            ndb.Key(flat=[models.Track, track_id], parent=parent_key)
+            for track_id in new_ids
         )
-        for track in new_track_gen:
-            batch.append(make_entity(parent_key, track))
+        del new_ids
+        batch_ids = itertools.chain(batch_ids, check_ids)
+
+    batch_track_gen = (track for track in chunk if track['id'] in batch_ids)
+    batch = tuple(make_entity(parent_key, track) for track in batch_track_gen)
 
     logging.info(
         'Putting {num} tracks into datastore.'.format(
             num=len(batch)
         )
     )
-    futures = ndb.put_multi_async(batch)
+    futures.extend(ndb.put_multi_async(batch))
     
     if deletes:
         logging.info(
@@ -240,7 +242,7 @@ def get_batch(
     '''
     logging.info('Getting batch #{num}'.format(num=_num))
     chunk_size = 100
-    num_batches = 10
+    num_batches = 20
     with musicapi_connector(user_id, encrypted_passwd) as api:
         for count in xrange(num_batches):
             results = api._make_call(
@@ -257,9 +259,10 @@ def get_batch(
             final_track_count = _num_tracks if _token is None else None
             logging.info(
                 ' '.join((
-                    'Batch #{num} loaded, {chunk_size} tracks queued',
+                    '[#{count}] Batch #{num} loaded, {chunk_size} tracks queued',
                     'for processing, {num_tracks} tracks total.'
                 )).format(
+                    count=count,
                     num=_num,
                     chunk_size=len(results),
                     num_tracks=_num_tracks

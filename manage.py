@@ -2,6 +2,14 @@
 import os
 import sys
 
+import google
+google_path = os.path.join(
+    os.path.split(os.path.dirname(__file__))[0],
+    'sitepackages',
+    'google_appengine',
+    'google'
+)
+google.__path__.append(google_path)
 from playlist.boot import fix_path
 fix_path()
 

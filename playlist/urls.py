@@ -21,5 +21,5 @@ urlpatterns = patterns('',
     
     url(r'^manager/', include('manager.urls')),
     
-    url(r'^cron/', include('manager.cron_urls'))
+    url(r'^cron/', include('cron.urls'))
 )

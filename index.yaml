@@ -32,8 +32,3 @@ indexes:
   properties:
   - name: app
   - name: name
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: touched

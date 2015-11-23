@@ -28,7 +28,6 @@ class Holiday(ndb.Model):
 
 
 class Track(ndb.Model):
-    touched = ndb.DateTimeProperty(required=True, auto_now=True)  # For finding/removing deleted tracks.
     title = ndb.StringProperty(required=True)  # For searchability
     disc_number = ndb.IntegerProperty()  # for display/sorting purposes
     total_disc_count = ndb.IntegerProperty()  # for display/sorting purposes

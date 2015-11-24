@@ -49,16 +49,8 @@ import gmusicapi
 import gmusicapi.protocol.mobileclient
 
 
-from core import crypt
+from core import crypt, lib
 from playlist import models
-
-
-@contextlib.contextmanager
-def suppress(*exceptions):
-    try:
-        yield
-    except exceptions:
-        pass
 
 
 def make_entity(parent_key, track):
@@ -79,37 +71,37 @@ def make_entity(parent_key, track):
         album=track['album'],
     )
     
-    with suppress(KeyError, IndexError):
+    with lib.suppress(KeyError, IndexError):
         entity.artist_art = track['artistArtRef'][0]['url']
 
-    with suppress(KeyError, IndexError):
+    with lib.suppress(KeyError, IndexError):
         entity.album_art = track['albumArtRef'][0]['url']
 
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.disc_number = int(track['discNumber'])
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.total_disc_count = int(track['totalDiscCount'])
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.track_number = int(track['trackNumber'])
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.total_track_count = int(track['totalTrackCount'])
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.album_artist = track['albumArtist']
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.year = int(track['year'])
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.composer = track['composer']
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.genre = track['genre']
     
-    with suppress(KeyError):
+    with lib.suppress(KeyError):
         entity.comment = track['comment']
     
     logging.debug('Entry:\n{data}'.format(data=entity))
@@ -144,60 +136,70 @@ def load_batch(user_id, start, chunk, final):
         for track in chunk
     )
 
-    # Place keys into buckets
-    deletes, batch_ids, check_ids = zip(*tuple(
-        (
-            key if deleted else None,
-            key if not deleted and modified else None,
-            key if not (deleted or modified) else None,
-        )
-        for key, deleted, modified in key_gen
-    ))
+    with lib.suppress(ValueError):
+        # Place keys into buckets
+        deletes, batch_ids, check_ids = zip(*tuple(
+            (
+                key if deleted else None,
+                key if not deleted and modified else None,
+                key if not (deleted or modified) else None,
+            )
+            for key, deleted, modified in key_gen
+        ))
+        
+        # Clean up buckets
+        deletes = tuple(key for key in deletes if key is not None)
+        batch_ids = tuple(key for key in batch_ids if key is not None)
+        check_ids = tuple(key for key in check_ids if key is not None)
     
-    # Clean up buckets
-    deletes = tuple(key for key in deletes if key is not None)
-    batch_ids = tuple(key for key in batch_ids if key is not None)
-    check_ids = tuple(key for key in check_ids if key is not None)
-
-    if check_ids:
-        existing_ids = set(item.key.id() for item in ndb.get_multi(check_ids))
-        check_ids = set(item.id() for item in check_ids)
-        new_ids = tuple(check_ids - existing_ids)
-        del existing_ids
-        check_ids = (
-            ndb.Key(flat=[models.Track, track_id], parent=parent_key)
-            for track_id in new_ids
-        )
-        del new_ids
-        batch_ids = itertools.chain(batch_ids, check_ids)
-
-    batch_track_gen = (track for track in chunk if track['id'] in batch_ids)
-    batch = tuple(make_entity(parent_key, track) for track in batch_track_gen)
-
-    logging.info(
-        'Putting {num} tracks into datastore.'.format(
-            num=len(batch)
-        )
-    )
-    futures.extend(ndb.put_multi_async(batch))
+        if check_ids:
+            existing_ids = set(
+                item.key.id()
+                for item in ndb.get_multi(check_ids)
+            )
+            check_ids = set(item.id() for item in check_ids)
+            new_ids = tuple(check_ids - existing_ids)
+            del existing_ids
+            check_ids = (
+                ndb.Key(flat=[models.Track, track_id], parent=parent_key)
+                for track_id in new_ids
+            )
+            del new_ids
+            batch_ids = itertools.chain(batch_ids, check_ids)
     
-    if deletes:
+        batch_track_gen = (track for track in chunk if track['id'] in batch_ids)
+        batch = tuple(
+            make_entity(parent_key, track)
+            for track in batch_track_gen
+        )
+    
         logging.info(
-            'Deleting {num} tracks from datastore.'.format(
-                num=len(deletes)
+            'Putting {num} tracks into datastore.'.format(
+                num=len(batch)
             )
         )
-        futures.extend(ndb.delete_multi_async(deletes))
-
-    ndb.Future.wait_all(futures)
-    logging.info(
-        'Completed batch: {count} tracks updated, {delcount} deleted.'.format(
-            count=len(batch),
-            delcount=len(deletes)
-        )
-    )
+        futures.extend(ndb.put_multi_async(batch))
+        
+        if deletes:
+            logging.info(
+                'Deleting {num} tracks from datastore.'.format(
+                    num=len(deletes)
+                )
+            )
+            futures.extend(ndb.delete_multi_async(deletes))
     
-    update_num_tracks(user_id, len(chunk) - len(deletes))
+        ndb.Future.wait_all(futures)
+        logging.info(
+            ' '.join((
+                'Completed batch: {count} tracks updated,',
+                '{delcount} deleted.'
+            )).format(
+                count=len(batch),
+                delcount=len(deletes)
+            )
+        )
+        
+        update_num_tracks(user_id, len(chunk) - len(deletes))
     
     if final is not None:
         user_entity = parent_key.get()

@@ -119,7 +119,7 @@ def get_tracks(request):
     query = models.Track.query(ancestor=user_id)
     cursor = None
     with lib.suppress(KeyError):
-        cursor = ndb.Cursor(urlsafe=request.GET['cursor'])
+        cursor = ndb.Cursor(urlsafe=request.GET['next_page'])
     batch_size = 100
     with lib.suppress(KeyError):
         batch_size = int(request.GET['batch_size'])
@@ -131,8 +131,8 @@ def get_tracks(request):
 
     return HttpResponse(
         json.dumps({
-            'cursor': next_cursor.urlsafe(),
-            'more': more,
+            'next_page': next_cursor.urlsafe(),
+            'more_tracks': more,
             'tracks': tuple(
                 {
                     'id': track.key.id(),

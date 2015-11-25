@@ -7,4 +7,5 @@ urlpatterns = [
     url(r'^user$', views.user, name='user'),
     url(r'^setpassword$', views.setpassword, name='setpassword'),
     url(r'^erase_library$', views.erase_library, name='erase_library'),
+    url(r'^get_tracks$', views.get_tracks, name='get_tracks'),
 ]

@@ -23,6 +23,9 @@ def autoload_libraries(request):  # Cron Job.
         
         user.updating = True
         user.num_tracks = 0
+        del user.updated_batches
+        del user.update_lengths
+        del user.avg_length
         
         try:
             start = (
@@ -51,7 +54,7 @@ def autoload_libraries(request):  # Cron Job.
         ndb.Future.wait_all(futures)
         
     if defer_list:
-        defer_batch = functools.partial(deferred.defer, lib_updater.get_batch)
+        defer_batch = functools.partial(deferred.defer, lib_updater.get_batch, _queue='lib-upd')
         func_defer = lambda a: defer_batch(*a)
         tuple(map(func_defer, defer_list))
 

@@ -32,3 +32,79 @@ indexes:
   properties:
   - name: app
   - name: name
+
+# LRA
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: partition
+  - name: rating
+  - name: play_count
+    direction: desc
+  - name: created
+    direction: desc
+  
+# LRP
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: partition
+  - name: rating
+  - name: play_count
+    direction: desc
+  - name: modified
+    direction: desc
+  
+# LOP
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: partition
+  - name: rating
+  - name: play_count
+    direction: desc
+  
+# RAND
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: partition
+  - name: rating
+  
+# Holiday LRA
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: holidays
+  - name: rating
+  - name: play_count
+    direction: desc
+  - name: created
+    direction: desc
+  
+# Holiday LRP
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: holidays
+  - name: rating
+  - name: play_count
+    direction: desc
+  - name: modified
+    direction: desc
+  
+# Holiday LOP
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: holidays
+  - name: rating
+  - name: play_count
+    direction: desc
+  
+# Holiday RAND
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: holidays
+  - name: rating

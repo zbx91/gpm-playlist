@@ -5,12 +5,15 @@ from google.appengine.ext import ndb
 
 
 class User(ndb.Model):
-    password = ndb.StringProperty()
-    email = ndb.StringProperty(required=True)
-    updating = ndb.BooleanProperty(required=True, default=False)
-    update_start = ndb.DateTimeProperty()
-    update_stop = ndb.DateTimeProperty()
-    num_tracks = ndb.IntegerProperty()
+    password = ndb.StringProperty(indexed=False, required=True)
+    email = ndb.StringProperty(indexed=False, required=True)
+    updating = ndb.BooleanProperty(indexed=False, required=True, default=False)
+    update_start = ndb.DateTimeProperty(indexed=False)
+    update_stop = ndb.DateTimeProperty(indexed=False)
+    updated_batches = ndb.StringProperty(repeated=True, indexed=False)
+    num_tracks = ndb.IntegerProperty(indexed=False)
+    avg_length = ndb.IntegerProperty(indexed=False)
+    update_lengths = ndb.StringProperty(indexed=False, repeated=True)
 
 
 class Partition(ndb.Model):

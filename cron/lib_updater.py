@@ -26,10 +26,15 @@ currently)
 
 from __future__ import division
 
+import base64
 import contextlib
 import datetime
+import decimal
+import hashlib
 import itertools
 import logging
+import math
+import operator
 import os
 
 from django.utils.crypto import get_random_string
@@ -47,7 +52,6 @@ google.__path__.append(google_path)
 
 import gmusicapi
 import gmusicapi.protocol.mobileclient
-
 
 from core import crypt, lib
 from playlist import models
@@ -110,10 +114,26 @@ def make_entity(parent_key, track):
 
 
 @ndb.transactional
-def update_num_tracks(user_id, num):
-    entity = ndb.Key(urlsafe=user_id).get()
-    entity.num_tracks += num
-    entity.put()
+def update_num_tracks(user_id, num, len_prod_piece, myhash, final):
+    logging.info('Updating track count with {num} tracks, length product = {len_prod}, Final = {final}'.format(num=num, final=final, len_prod=len_prod_piece))
+    user = ndb.Key(urlsafe=user_id).get()
+    if myhash not in user.updated_batches:
+        user.num_tracks += num
+        user.update_lengths.append(len_prod_piece)
+
+        if final:
+            length_product = reduce(operator.mul, map(long, user.update_lengths), 1)
+            del user.updated_batches
+            del user.update_lengths
+            with decimal.localcontext() as ctx:
+                ctx.prec = 64
+                power = ctx.divide(1, int(user.num_tracks))
+                user.avg_length = int(ctx.power(length_product,  power).to_integral_value())
+
+        else:
+            user.updated_batches.append(myhash)
+            
+        user.put()
 
 
 def load_batch(user_id, start, chunk, final):
@@ -199,7 +219,32 @@ def load_batch(user_id, start, chunk, final):
             )
         )
         
-        update_num_tracks(user_id, len(chunk) - len(deletes))
+        myhash = base64.urlsafe_b64encode(
+            hashlib.md5(
+                '::'.join(
+                    track['id']
+                    for track in chunk
+                )
+            ).digest()
+        )
+        num_tracks = len(chunk) - len(deletes)
+        all_lens = tuple(
+            int(track['durationMillis'])
+            for track in chunk
+            if not track['deleted']
+        )
+        length_product = str(reduce(operator.mul, all_lens, 1))
+        logging.info('Track lengths: {lens}'.format(lens=all_lens))
+        last_tracks = final is not None
+        deferred.defer(
+            update_num_tracks,
+            user_id,
+            num_tracks,
+            length_product,
+            myhash,
+            last_tracks,
+            _queue='lib-upd'
+        )
     
     if final is not None:
         user_entity = parent_key.get()
@@ -271,7 +316,7 @@ def get_batch(
                 )
             )
             _num += 1
-            deferred.defer(load_batch, user_id, start, results, final_track_count)
+            deferred.defer(load_batch, user_id, start, results, final_track_count, _queue='lib-upd')
             if _token is None:
                 break
     if _token is not None:
@@ -286,5 +331,6 @@ def get_batch(
             crypt.encrypt(crypt.decrypt(encrypted_passwd, uid), uid),
             _token=_token,
             _num=_num+1,
-            _num_tracks=_num_tracks
+            _num_tracks=_num_tracks,
+            _queue='lib-upd'
         )

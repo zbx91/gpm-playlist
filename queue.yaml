@@ -1,0 +1,7 @@
+queue:
+  - name: default
+    rate: 5/s
+    
+  - name: lib-upd
+    rate: 40/s
+    bucket_size: 40

@@ -1,4 +1,7 @@
+import calendar
+import datetime
 import itertools
+import json
 import logging
 import pprint
 import time
@@ -13,8 +16,8 @@ from django.shortcuts import render
 
 import requests
 
-from core import crypt
-from playlist import models  # , lib_updater
+from core import crypt, lib
+from playlist import models
 
 
 # Create your views here.
@@ -51,16 +54,16 @@ def user(request):
         federated_provider=user.federated_provider(),
         items=dir(user)
     )
-    
+
     return HttpResponse(resp)
-    
-    
+
+
 def setpassword(request):
     user = users.get_current_user()
     user_id = user.user_id()
     clear_passwd = request.GET['pw']
     encrypted_passwd = crypt.encrypt(clear_passwd, user_id)
-    
+
     encrypted_email = crypt.encrypt(user.email(), user_id)
     entity = models.User(
         id=user_id,
@@ -68,7 +71,7 @@ def setpassword(request):
         password=encrypted_passwd
     )
     entity.put()
-    
+
     return HttpResponse("Done.")
 
 
@@ -80,7 +83,10 @@ def erase_tracks(user_id):
         )
     )
     parent_key = ndb.Key(urlsafe=user_id)
-    keys = models.Track.query(ancestor=parent_key).fetch(batch_size, keys_only=True)
+    keys = models.Track.query(ancestor=parent_key).fetch(
+        batch_size,
+        keys_only=True
+    )
     futures = ndb.delete_multi_async(keys)
     ndb.Future.wait_all(futures)
     if keys:
@@ -101,5 +107,69 @@ def erase_library(request):
     logging.info('Library erasing starting...')
     deferred.defer(erase_tracks, user_id.urlsafe())
     return HttpResponse(
-        '<html><body><p>Starting to erase library for user {user}</p></body></html>'.format(user=user.email())
+        ' '.join((
+            '<html><body><p>Starting to erase library',
+            'for user {user}</p></body></html>'
+        )).format(user=user.email())
     )
+
+def get_tracks(request):
+    user = users.get_current_user()
+    user_id = ndb.Key(models.User, user.user_id())
+    query = models.Track.query(ancestor=user_id)
+    cursor = None
+    with lib.suppress(KeyError):
+        cursor = ndb.Cursor(urlsafe=request.GET['cursor'])
+    batch_size = 100
+    with lib.suppress(KeyError):
+        batch_size = int(request.GET['batch_size'])
+
+    track_batch, next_cursor, more = query.fetch_page(
+        batch_size,
+        start_cursor=cursor
+    )
+
+    return HttpResponse(
+        json.dumps({
+            'cursor': next_cursor.urlsafe(),
+            'more': more,
+            'tracks': tuple(
+                {
+                    'id': track.key.id(),
+                    'title': track.title,
+                    'disc_number': track.disc_number,
+                    'total_disc_count': track.total_disc_count,
+                    'track_number': track.track_number,
+                    'total_track_count': track.total_track_count,
+                    'artist': track.artist,
+                    'artist_art': track.artist_art,
+                    'album_artist': track.album_artist,
+                    'album': track.album,
+                    'album_art': track.album_art,
+                    'year': track.year,
+                    'composer': track.composer,
+                    'genre': track.genre,
+                    'created': int(
+                        calendar.timegm(
+                            track.created.timetuple()
+                        ) * 1000 + track.created.microsecond / 1000
+                    ),
+                    'modified': int(
+                        calendar.timegm(
+                            track.modified.timetuple()
+                        ) * 1000 + track.modified.microsecond / 1000
+                    ),
+                    'play_count': track.play_count,
+                    'duration_millis': track.duration_millis,
+                    'rating': track.rating,
+                    'comment': track.comment,
+                    'partition': track.partition,
+                    'holidays': tuple(holiday for holiday in track.holidays),
+                }
+                for track in track_batch
+            ),
+        }),
+        content_type='text/json'
+    )
+
+

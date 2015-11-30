@@ -10,12 +10,12 @@ This follows a very specific set of steps:
        a. Any tracks that have been modified since the last update
        b. Any tracks in the library that have not yet been loaded
     2. Remove deleted tracks
-       
+
 This also keeps track of the number of tracks that were loaded, as well as when
 the library loading started & stopped (plus if it is in the midst of loading
 currently)
 
-.. note:: 
+.. note::
 
     There is a cron job that starts loading all of the libraries for all users
     at midnight (GMT). This is an expensive process, with a lot of Datastore
@@ -65,6 +65,9 @@ def make_entity(parent_key, track):
         created=datetime.datetime.utcfromtimestamp(
             int(track['creationTimestamp']) / 1000000
         ),
+        recent=datetime.datetime.utcfromtimestamp(
+            int(track['recentTimestamp']) / 1000000
+        ),
         modified=datetime.datetime.utcfromtimestamp(
             int(track['lastModifiedTimestamp']) / 1000000
         ),
@@ -74,7 +77,7 @@ def make_entity(parent_key, track):
         artist=track['artist'],
         album=track['album'],
     )
-    
+
     with lib.suppress(KeyError, IndexError):
         entity.artist_art = track['artistArtRef'][0]['url']
 
@@ -83,33 +86,33 @@ def make_entity(parent_key, track):
 
     with lib.suppress(KeyError):
         entity.disc_number = int(track['discNumber'])
-    
+
     with lib.suppress(KeyError):
         entity.total_disc_count = int(track['totalDiscCount'])
-    
+
     with lib.suppress(KeyError):
         entity.track_number = int(track['trackNumber'])
-    
+
     with lib.suppress(KeyError):
         entity.total_track_count = int(track['totalTrackCount'])
-    
+
     with lib.suppress(KeyError):
         entity.album_artist = track['albumArtist']
-    
+
     with lib.suppress(KeyError):
         entity.year = int(track['year'])
-    
+
     with lib.suppress(KeyError):
         entity.composer = track['composer']
-    
+
     with lib.suppress(KeyError):
         entity.genre = track['genre']
-    
+
     with lib.suppress(KeyError):
         entity.comment = track['comment']
-    
+
     logging.debug('Entry:\n{data}'.format(data=entity))
-    
+
     return entity
 
 
@@ -132,11 +135,11 @@ def update_num_tracks(user_id, num, len_prod_piece, myhash, final):
 
         else:
             user.updated_batches.append(myhash)
-            
+
         user.put()
 
 
-def load_batch(user_id, start, chunk, final):
+def load_batch(user_id, start, initial, chunk, final):
     '''
     Loads a batch of tracks into models.Track entities.
     '''
@@ -162,16 +165,16 @@ def load_batch(user_id, start, chunk, final):
             (
                 key if deleted else None,
                 key if not deleted and modified else None,
-                key if not (deleted or modified) else None,
+                key if initial and not (deleted or modified) else None,
             )
             for key, deleted, modified in key_gen
         ))
-        
+
         # Clean up buckets
         deletes = tuple(key for key in deletes if key is not None)
         batch_ids = tuple(key for key in batch_ids if key is not None)
         check_ids = tuple(key for key in check_ids if key is not None)
-    
+
         if check_ids:
             existing_ids = set(
                 item.key.id()
@@ -186,20 +189,20 @@ def load_batch(user_id, start, chunk, final):
             )
             del new_ids
             batch_ids = itertools.chain(batch_ids, check_ids)
-    
+
         batch_track_gen = (track for track in chunk if track['id'] in batch_ids)
         batch = tuple(
             make_entity(parent_key, track)
             for track in batch_track_gen
         )
-    
+
         logging.info(
             'Putting {num} tracks into datastore.'.format(
                 num=len(batch)
             )
         )
         futures.extend(ndb.put_multi_async(batch))
-        
+
         if deletes:
             logging.info(
                 'Deleting {num} tracks from datastore.'.format(
@@ -207,7 +210,7 @@ def load_batch(user_id, start, chunk, final):
                 )
             )
             futures.extend(ndb.delete_multi_async(deletes))
-    
+
         ndb.Future.wait_all(futures)
         logging.info(
             ' '.join((
@@ -218,7 +221,7 @@ def load_batch(user_id, start, chunk, final):
                 delcount=len(deletes)
             )
         )
-        
+
         myhash = base64.urlsafe_b64encode(
             hashlib.md5(
                 '::'.join(
@@ -245,7 +248,7 @@ def load_batch(user_id, start, chunk, final):
             last_tracks,
             _queue='lib-upd'
         )
-    
+
     if final is not None:
         user_entity = parent_key.get()
         user_entity.updating = False
@@ -279,6 +282,7 @@ def musicapi_connector(user_id, encrypted_passwd):
 def get_batch(
     user_id,
     start,
+    initial,
     encrypted_passwd,
     _token=None,
     _num=1,
@@ -316,7 +320,7 @@ def get_batch(
                 )
             )
             _num += 1
-            deferred.defer(load_batch, user_id, start, results, final_track_count, _queue='lib-upd')
+            deferred.defer(load_batch, user_id, start, initial, results, final_track_count, _queue='lib-upd')
             if _token is None:
                 break
     if _token is not None:
@@ -328,6 +332,7 @@ def get_batch(
             get_batch,
             user_id,
             start,
+            initial,
             crypt.encrypt(crypt.decrypt(encrypted_passwd, uid), uid),
             _token=_token,
             _num=_num+1,

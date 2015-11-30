@@ -36,8 +36,7 @@ def autoload_libraries(request):  # Cron Job.
             start = 0
             
         user.update_start = datetime.datetime.now()
-        
-        del user.update_stop
+        initial = not user.update_stop
         updates.append(user)
         user_id = user.key.urlsafe()
         uid = user.key.id()
@@ -45,6 +44,7 @@ def autoload_libraries(request):  # Cron Job.
             (
                 user_id,
                 start,
+                initial,
                 crypt.encrypt(crypt.decrypt(user.password, uid), uid)
             )
         )

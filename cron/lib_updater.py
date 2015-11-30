@@ -57,7 +57,7 @@ from core import crypt, lib
 from playlist import models
 
 
-def make_entity(parent_key, track):
+def make_entity(parent_key, track, batch_num):
     entity = models.Track(
         parent=parent_key,
         id=track['id'],
@@ -111,12 +111,11 @@ def make_entity(parent_key, track):
     with lib.suppress(KeyError):
         entity.comment = track['comment']
 
-    logging.debug('Entry:\n{data}'.format(data=entity))
+    logging.debug('[Batch #{batch_num}] Entry:\n{data}'.format(batch_num=batch_num, data=entity))
 
     return entity
 
 
-@ndb.transactional
 def finalize_user(user_id, batch_num):
     user = ndb.Key(urlsafe=user_id).get()
     logging.info('Finalizing user {uid} library update.'.format(uid=user.key.id()))
@@ -135,7 +134,6 @@ def finalize_user(user_id, batch_num):
     else:
         logging.debug('{batch_num} total batches processed.'.format(batch_num=batch_num))
 
-    del user.updated_batches
     length_product = reduce(operator.mul, map(long, user.update_lengths), 1)
 
     with decimal.localcontext() as ctx:
@@ -145,6 +143,7 @@ def finalize_user(user_id, batch_num):
             ctx.power(length_product, power).to_integral_value()
         )
 
+    del user.updated_batches
     del user.update_lengths
     user.updating = False
     user.update_stop = datetime.datetime.now()
@@ -179,16 +178,16 @@ def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num):
     updated = count_updater(user_id, num, len_prod_piece, myhash, batch_num)
 
     if updated:
-        logging.info('User counts updated for batch #{batch_num}'.format(
+        logging.info('[Batch #{batch_num}] User counts updated'.format(
             batch_num=batch_num
         ))
 
         if final:
-            logging.info('Scheduling finalizer task...')
+            logging.info('[Batch #{batch_num}] Scheduling finalizer task...'.format(batch_num=batch_num))
             deferred.defer(finalize_user, user_id, batch_num, _queue='lib-upd')
 
     else:
-        logging.info('Already updated batch #{batch_num}, skipping.'.format(
+        logging.info('[Batch #{batch_num}] Already updated, skipping.'.format(
             batch_num=batch_num
         ))
 
@@ -197,10 +196,10 @@ def load_batch(user_id, start, chunk, final, batch_num):
     '''
     Loads a batch of tracks into models.Track entities.
     '''
-    logging.info('Processing chunk: {chunk} tracks (Batch #{batch_num})'.format(
-        chunk=len(chunk)),
+    logging.info('[Batch #{batch_num}] Processing chunk: {chunk} tracks.'.format(
+        chunk=len(chunk),
         batch_num=batch_num,
-    )
+    ))
     batch = []
     futures = []
 
@@ -231,12 +230,13 @@ def load_batch(user_id, start, chunk, final, batch_num):
         batch_ids = tuple(key for key in batch_ids if key is not None)
         batch_track_gen = (track for track in chunk if track['id'] in batch_ids)
         batch = tuple(
-            make_entity(parent_key, track)
+            make_entity(parent_key, track, batch_num)
             for track in batch_track_gen
         )
 
         logging.info(
-            'Putting {num} tracks into datastore.'.format(
+            '[Batch #{batch_num}] Putting {num} tracks into datastore.'.format(
+                batch_num=batch_num,
                 num=len(batch)
             )
         )
@@ -244,7 +244,8 @@ def load_batch(user_id, start, chunk, final, batch_num):
 
         if deletes:
             logging.info(
-                'Deleting {num} tracks from datastore.'.format(
+                '[Batch #{batch_num}] Deleting {num} tracks from datastore.'.format(
+                    batch_num=batch_num,
                     num=len(deletes)
                 )
             )
@@ -253,7 +254,7 @@ def load_batch(user_id, start, chunk, final, batch_num):
         ndb.Future.wait_all(futures)
         logging.info(
             ' '.join((
-                'Completed batch #{batch_num}: {count} tracks updated,',
+                '[Batch #{batch_num}] Completed: {count} tracks updated,',
                 '{delcount} deleted.'
             )).format(
                 batch_num=batch_num,
@@ -277,7 +278,6 @@ def load_batch(user_id, start, chunk, final, batch_num):
             if not track['deleted']
         )
         length_product = str(reduce(operator.mul, all_lens, 1))
-        logging.info('Track lengths: {lens}'.format(lens=all_lens))
         last_tracks = final is not None
         deferred.defer(
             update_num_tracks,
@@ -291,7 +291,7 @@ def load_batch(user_id, start, chunk, final, batch_num):
         )
 
     if final is not None:
-        logging.info('All batches completed.')
+        logging.info('[Batch #{batch_num}] All batches updated.'.format(batch_num=batch_num))
 
 
 def initialize_batch(user_id, start, chunk, final, batch_num):
@@ -299,7 +299,7 @@ def initialize_batch(user_id, start, chunk, final, batch_num):
     Loads a batch of tracks into models.Track entities.
     '''
     logging.info(
-        'Initializing chunk: {chunk} tracks (batch #{batch_num})'.format(
+        '[Batch #{batch_num}] Initializing chunk: {chunk} tracks'.format(
             chunk=len(chunk),
             batch_num=batch_num,
         )
@@ -311,23 +311,20 @@ def initialize_batch(user_id, start, chunk, final, batch_num):
 
     # Set up keys, and figure out tests for placing into buckets.
     batch = tuple(
-        make_entity(parent_key, track)
+        make_entity(parent_key, track, batch_num)
         for track in chunk
         if not track['deleted']
     )
 
+    logging.info('[Batch #{batch_num}] Putting {num} tracks into datastore.'.format(batch_num=batch_num, num=len(batch)))
+    futures.extend(ndb.put_multi_async(batch))
+    ndb.Future.wait_all(futures)
     logging.info(
-        'Putting {num} tracks into datastore.'.format(
-            num=len(batch)
+        '[Batch #{batch_num}] Completed: {num_tracks} tracks added.'.format(
+            batch_num=batch_num,
+            num_tracks=len(batch),
         )
     )
-    futures.extend(ndb.put_multi_async(batch))
-
-    ndb.Future.wait_all(futures)
-    logging.info('Completed batch #{batch_num}: {count} tracks added.'.format(
-        batch_num=batch_num
-        count=len(batch)
-    ))
 
     myhash = base64.urlsafe_b64encode(
         hashlib.md5(
@@ -344,7 +341,6 @@ def initialize_batch(user_id, start, chunk, final, batch_num):
         if not track['deleted']
     )
     length_product = str(reduce(operator.mul, all_lens, 1))
-    logging.info('Track lengths: {lens}'.format(lens=all_lens))
     last_tracks = final is not None
     deferred.defer(
         update_num_tracks,
@@ -358,7 +354,7 @@ def initialize_batch(user_id, start, chunk, final, batch_num):
     )
 
     if final is not None:
-        logging.info('All batches completed.')
+        logging.info('[Batch #{batch_num}] All batches initialized.'.format(batch_num=batch_num))
 
 
 @contextlib.contextmanager
@@ -397,7 +393,7 @@ def get_batch(
     '''
     Retrieves a batch of tracks from Google Play Music, to be processed.
     '''
-    logging.info('Getting batch #{num}'.format(num=_num))
+    logging.info('Starting get_batch()')
     chunk_size = 100
     num_batches = 20
 
@@ -405,7 +401,8 @@ def get_batch(
     stop = start + num_batches
 
     with musicapi_connector(user_id, encrypted_passwd) as api:
-        for count in xrange(start, stop):
+        for batch_num in xrange(start, stop):
+            logging.info('[Batch #{batch_num}] Retrieving batch from Google Play Music'.format(batch_num=batch_num))
             results = api._make_call(
                 gmusicapi.protocol.mobileclient.ListTracks,
                 start_token=_token,
@@ -420,12 +417,11 @@ def get_batch(
             final_track_count = _num_tracks if _token is None else None
             logging.info(
                 ' '.join((
-                    'Batch #{count} loaded, {chunk_size} tracks',
-                    'queued for processing, {num_tracks} tracks total.'
+                    '[Batch #{batch_num}] Retrieved {chunk_size} tracks,',
+                    'queued for processing.'
                 )).format(
-                    count=count,
-                    chunk_size=len(results),
-                    num_tracks=_num_tracks
+                    batch_num=batch_num,
+                    chunk_size=_num_tracks
                 )
             )
             deferred.defer(
@@ -434,17 +430,20 @@ def get_batch(
                 start,
                 results,
                 final_track_count,
-                count,
+                batch_num,
                 _queue='lib-upd'
             )
             if _token is None:
                 break
 
     if _token is not None:
-        logging.info(
-            'Preparing to retrieve more batches...'
-        )
         uid = ndb.Key(urlsafe=user_id).id()
+        logging.info(
+            '[Batch #{batch_num}] Preparing to retrieve more batches for user {uid}...'.format(
+                batch_num=batch_num,
+                uid=uid
+            )
+        )
         deferred.defer(
             get_batch,
             user_id,
@@ -452,10 +451,10 @@ def get_batch(
             initial,
             crypt.encrypt(crypt.decrypt(encrypted_passwd, uid), uid),
             _token=_token,
-            _num=count,
+            _num=batch_num,
             _num_tracks=_num_tracks,
             _queue='lib-upd'
         )
 
     else:
-        logging.info('All batches retrieved.')
+        logging.info('[Batch #{batch_num}] All batches retrieved.'.format(batch_num=batch_num))

@@ -8,6 +8,7 @@ class User(ndb.Model):
     password = ndb.StringProperty(indexed=False, required=True)
     email = ndb.StringProperty(indexed=False, required=True)
     updating = ndb.BooleanProperty(indexed=False, required=True, default=False)
+    last_update_start = ndb.DateTimeProperty(indexed=False)
     update_start = ndb.DateTimeProperty(indexed=False)
     update_stop = ndb.DateTimeProperty(indexed=False)
     updated_batches = ndb.StringProperty(repeated=True, indexed=False)

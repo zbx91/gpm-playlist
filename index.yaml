@@ -108,3 +108,21 @@ indexes:
   properties:
   - name: holidays
   - name: rating
+  
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
+  - name: disc_number
+  - name: track_number
+  - name: title
+  
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: artist
+  - name: album
+  - name: disc_number
+  - name: track_number
+  - name: title
+  

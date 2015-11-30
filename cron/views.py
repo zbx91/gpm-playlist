@@ -1,5 +1,6 @@
 import datetime
 import functools
+import logging
 
 from django.http import HttpResponse
 from django.shortcuts import render
@@ -8,7 +9,7 @@ from google.appengine.ext import deferred
 from google.appengine.ext import ndb
 
 from playlist import models
-from core import crypt
+from core import crypt, lib
 
 from . import lib_updater
 
@@ -17,54 +18,64 @@ from . import lib_updater
 def autoload_libraries(request):  # Cron Job.
     updates = []
     defer_list = []
+    futures = []
     for user in models.User.query():
+        logging.info('Starting updating for user {uid}'.format(uid=user.key.id()))
         if user.updating:
+            logging.warning('User {uid} already being updated!'.format(uid=user.key.id()))
             continue
-        
+
         user.updating = True
         user.num_tracks = 0
         del user.updated_batches
         del user.update_lengths
         del user.avg_length
-        
+
+        with lib.suppress(ValueError):
+            if user.update_start and user.update_stop and user.update_stop > user.update_start:
+                user.last_update_start = user.update_start
+
+            elif not user.update_start:
+                user.last_update_start = None
+
         try:
             start = (
-                user.update_start - datetime.datetime(1970,1,1)
+                user.last_update_start - datetime.datetime(1970,1,1)
             ).total_seconds() * 1000000
-            
+
         except TypeError:
             start = 0
-            
-        user.update_start = datetime.datetime.now()
-        initial = not user.update_stop
-        updates.append(user)
-        user_id = user.key.urlsafe()
-        uid = user.key.id()
-        defer_list.append(
-            (
-                user_id,
-                start,
-                initial,
-                crypt.encrypt(crypt.decrypt(user.password, uid), uid)
+
+        initial = not user.last_update_start
+
+        logging.debug(
+            'Initial loading of library'
+            if initial
+            else 'Library last updated {last_start}'.format(
+                last_start=user.last_update_start
             )
         )
 
-    if updates:
-        futures = ndb.put_multi_async(updates)
-        ndb.Future.wait_all(futures)
-        
-    if defer_list:
-        defer_batch = functools.partial(deferred.defer, lib_updater.get_batch, _queue='lib-upd')
-        func_defer = lambda a: defer_batch(*a)
-        tuple(map(func_defer, defer_list))
+        user.update_start = datetime.datetime.now()
+        updates.append(user)
+        user_id = user.key.urlsafe()
+        uid = user.key.id()
+        logging.info('Starting track processing for user {uid}'.format(uid=uid))
+        deferred.defer(
+            lib_updater.get_batch,
+            user_id,
+            start,
+            initial,
+            crypt.encrypt(crypt.decrypt(user.password, uid), uid)
+        )
+        futures.append(user.put_async())
+
+    ndb.Future.wait_all(futures)
+
+    logging.info('Done with update startup.')
 
     return HttpResponse(
-        ' '.join((
-            '<html><body><p>Starting music loading process',
-            'for {num} user(s)...</p></body></html>'
-        )).format(
-            num=len(updates)
-        ),
+        '<html><body><p>Music loading process started.</p></body></html>',
         status=202
     )
-    
+

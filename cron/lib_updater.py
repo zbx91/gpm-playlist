@@ -117,7 +117,38 @@ def make_entity(parent_key, track):
 
 
 @ndb.transactional
-def update_num_tracks(user_id, num, len_prod_piece, myhash, final):
+def finalize_user(user_id, batch_num):
+    user = ndb.Key(urlsafe=user_id).get()
+    if len(user.updated_batches) < batch_num:
+        logging.info('Not completed with updating... rescheduling finalizer.')
+        logging.debug('{num_batches} < {batch_num}'.format(num_batches=len(user.updated_batches), batch_num=batch_num))
+        deferred.defer(finalize_user, user_id, batch_num)
+        return
+
+    del user.updated_batches
+    length_product = reduce(operator.mul, map(long, user.update_lengths), 1)
+    with decimal.localcontext() as ctx:
+        ctx.prec = 64
+        power = ctx.divide(1, int(user.num_tracks))
+        user.avg_length = int(
+            ctx.power(length_product, power).to_integral_value()
+        )
+    del user.update_lengths
+    user.updating = False
+    user.update_stop = datetime.datetime.now()
+    user.put()
+    logging.info(
+        ' '.join((
+            'Library updated, {num} tracks total,',
+            'average length of {avglen}'
+        )).format(
+            num=user.num_tracks,
+            avglen=datetime.timedelta(seconds=user.avg_length / 1000)
+        )
+    )
+
+@ndb.transactional
+def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num):
     logging.info(
         ' '.join((
             'Updating track count with {num} tracks, length product =',
@@ -131,40 +162,20 @@ def update_num_tracks(user_id, num, len_prod_piece, myhash, final):
     user = ndb.Key(urlsafe=user_id).get()
     if myhash not in user.updated_batches:
         user.num_tracks += num
-        try:
-            user.update_lengths = str(long(user.update_lengths) * long(len_prod_piece))
-
-        except TypeError:
-            user.update_lengths = str(len_prod_piece)
-
-        if final:
-            del user.updated_batches
-            with decimal.localcontext() as ctx:
-                ctx.prec = 64
-                power = ctx.divide(1, int(user.num_tracks))
-                user.avg_length = int(
-                    ctx.power(
-                        long(user.update_lengths),
-                        power
-                    ).to_integral_value()
-                )
-            del user.update_lengths
-            user.updating = False
-            user.update_stop = datetime.datetime.now()
-            logging.info(
-                'Library updated, {num} tracks total, average of {avglen} length'.format(
-                    num=user.num_tracks,
-                    avglen=datetime.timedelta(seconds=user.avg_length / 1000)
-                )
-            )
-
-        else:
-            user.updated_batches.append(myhash)
-
+        user.update_lengths.append(len_prod_piece)
+        user.updated_batches.append(myhash)
         user.put()
 
+        if final:
+            deferred.defer(
+                finalize_user,
+                user_id,
+                batch_num,
+                _queue='lib-upd'
+            )
 
-def load_batch(user_id, start, initial, chunk, final):
+
+def load_batch(user_id, start, initial, chunk, final, batch_num):
     '''
     Loads a batch of tracks into models.Track entities.
     '''
@@ -271,7 +282,8 @@ def load_batch(user_id, start, initial, chunk, final):
             length_product,
             myhash,
             last_tracks,
-            _queue='lib-upd-counts'
+            batch_num,
+            _queue='lib-upd'
         )
 
     if final is not None:
@@ -306,7 +318,7 @@ def get_batch(
     initial,
     encrypted_passwd,
     _token=None,
-    _num=1,
+    _num=0,
     _num_tracks=0
 ):
     '''
@@ -315,8 +327,12 @@ def get_batch(
     logging.info('Getting batch #{num}'.format(num=_num))
     chunk_size = 100
     num_batches = 20
+
+    start = _num + 1
+    stop = start + num_batches
+
     with musicapi_connector(user_id, encrypted_passwd) as api:
-        for count in xrange(num_batches):
+        for count in xrange(start, stop):
             results = api._make_call(
                 gmusicapi.protocol.mobileclient.ListTracks,
                 start_token=_token,
@@ -331,17 +347,24 @@ def get_batch(
             final_track_count = _num_tracks if _token is None else None
             logging.info(
                 ' '.join((
-                    '[#{count}] Batch #{num} loaded, {chunk_size} tracks queued',
-                    'for processing, {num_tracks} tracks total.'
+                    'Batch #{count} loaded, {chunk_size} tracks',
+                    'queued for processing, {num_tracks} tracks total.'
                 )).format(
                     count=count,
-                    num=_num,
                     chunk_size=len(results),
                     num_tracks=_num_tracks
                 )
             )
-            _num += 1
-            deferred.defer(load_batch, user_id, start, initial, results, final_track_count, _queue='lib-upd')
+            deferred.defer(
+                load_batch,
+                user_id,
+                start,
+                initial,
+                results,
+                final_track_count,
+                count,
+                _queue='lib-upd'
+            )
             if _token is None:
                 break
     if _token is not None:
@@ -356,7 +379,7 @@ def get_batch(
             initial,
             crypt.encrypt(crypt.decrypt(encrypted_passwd, uid), uid),
             _token=_token,
-            _num=_num+1,
+            _num=count,
             _num_tracks=_num_tracks,
             _queue='lib-upd'
         )

@@ -13,7 +13,7 @@ class User(ndb.Model):
     updated_batches = ndb.StringProperty(repeated=True, indexed=False)
     num_tracks = ndb.IntegerProperty(indexed=False)
     avg_length = ndb.IntegerProperty(indexed=False)
-    update_lengths = ndb.StringProperty(indexed=False)
+    update_lengths = ndb.StringProperty(indexed=False, repeated=True)
 
 
 class Partition(ndb.Model):

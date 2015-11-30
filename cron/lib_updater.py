@@ -118,20 +118,45 @@ def make_entity(parent_key, track):
 
 @ndb.transactional
 def update_num_tracks(user_id, num, len_prod_piece, myhash, final):
-    logging.info('Updating track count with {num} tracks, length product = {len_prod}, Final = {final}'.format(num=num, final=final, len_prod=len_prod_piece))
+    logging.info(
+        ' '.join((
+            'Updating track count with {num} tracks, length product =',
+            '{len_prod}, Final = {final}'
+        )).format(
+            num=num,
+            final=final,
+            len_prod=len_prod_piece
+        )
+    )
     user = ndb.Key(urlsafe=user_id).get()
     if myhash not in user.updated_batches:
         user.num_tracks += num
-        user.update_lengths.append(len_prod_piece)
+        try:
+            user.update_lengths = str(long(user.update_lengths) * long(len_prod_piece))
+
+        except TypeError:
+            user.update_lengths = str(len_prod_piece)
 
         if final:
-            length_product = reduce(operator.mul, map(long, user.update_lengths), 1)
             del user.updated_batches
-            del user.update_lengths
             with decimal.localcontext() as ctx:
                 ctx.prec = 64
                 power = ctx.divide(1, int(user.num_tracks))
-                user.avg_length = int(ctx.power(length_product,  power).to_integral_value())
+                user.avg_length = int(
+                    ctx.power(
+                        long(user.update_lengths),
+                        power
+                    ).to_integral_value()
+                )
+            del user.update_lengths
+            user.updating = False
+            user.update_stop = datetime.datetime.now()
+            logging.info(
+                'Library updated, {num} tracks total, average of {avglen} length'.format(
+                    num=user.num_tracks,
+                    avglen=datetime.timedelta(seconds=user.avg_length / 1000)
+                )
+            )
 
         else:
             user.updated_batches.append(myhash)
@@ -246,15 +271,11 @@ def load_batch(user_id, start, initial, chunk, final):
             length_product,
             myhash,
             last_tracks,
-            _queue='lib-upd'
+            _queue='lib-upd-counts'
         )
 
     if final is not None:
-        user_entity = parent_key.get()
-        user_entity.updating = False
-        user_entity.update_stop = datetime.datetime.now()
-        user_entity.put()
-        logging.info('All batches completed, library updated.')
+        logging.info('All batches completed.')
 
 
 @contextlib.contextmanager

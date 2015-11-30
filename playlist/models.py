@@ -45,8 +45,8 @@ class Track(ndb.Model):
     composer = ndb.StringProperty(required=True, default='')  # For searchability
     genre = ndb.StringProperty(required=True, default='')  # For searchability
     created = ndb.DateTimeProperty(required=True)  # Used in LRA calculation
-    modified = ndb.DateTimeProperty(required=True)  # Used in LRP calculation
-    recent = ndb.DateTimeProperty(required=True)  # Used in LRP calculation
+    modified = ndb.DateTimeProperty(required=True)  # Used in LRP calculation?
+    recent = ndb.DateTimeProperty(required=True)  # Used in LRP calculation?
     play_count = ndb.IntegerProperty(required=True, default=0)  # Used in LRA, LRP, LOP calculations
     duration_millis = ndb.IntegerProperty(indexed=False, required=True)  # Used to help determine the number of tracks to play
     rating = ndb.IntegerProperty(required=True, default=0, choices=(0, 1, 2, 3, 4, 5))  # Used in subgroup processing

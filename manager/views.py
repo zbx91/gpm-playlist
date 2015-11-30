@@ -115,6 +115,8 @@ def erase_library(request):
 
 def get_tracks(request):
     user = users.get_current_user()
+    if user is None:
+        return HttpResponse('Not logged in.')
     user_id = ndb.Key(models.User, user.user_id())
     query = models.Track.query(ancestor=user_id)
     cursor = None
@@ -131,7 +133,7 @@ def get_tracks(request):
 
     return HttpResponse(
         json.dumps({
-            'next_page': next_cursor.urlsafe(),
+            'next_page': next_cursor.urlsafe() if next_cursor is not None else None,
             'more_tracks': more,
             'tracks': tuple(
                 {

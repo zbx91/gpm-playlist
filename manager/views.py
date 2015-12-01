@@ -173,5 +173,3 @@ def get_tracks(request):
         }),
         content_type='text/json'
     )
-
-

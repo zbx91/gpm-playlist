@@ -17,7 +17,6 @@ from . import lib_updater
 
 def autoload_libraries(request):  # Cron Job.
     updates = []
-    defer_list = []
     futures = []
     for user in models.User.query():
         logging.info('Starting updating for user {uid}'.format(uid=user.key.id()))
@@ -27,6 +26,8 @@ def autoload_libraries(request):  # Cron Job.
 
         user.updating = True
         user.num_tracks = 0
+        user.num_deletes = 0
+        user.num_updates = 0
         del user.updated_batches
         del user.update_lengths
         del user.avg_length
@@ -37,14 +38,6 @@ def autoload_libraries(request):  # Cron Job.
 
             elif not user.update_start:
                 user.last_update_start = None
-
-        try:
-            start = (
-                user.last_update_start - datetime.datetime(1970,1,1)
-            ).total_seconds() * 1000000
-
-        except TypeError:
-            start = 0
 
         initial = not user.last_update_start
 
@@ -64,7 +57,7 @@ def autoload_libraries(request):  # Cron Job.
         deferred.defer(
             lib_updater.get_batch,
             user_id,
-            start,
+            user.last_update_start,
             initial,
             crypt.encrypt(crypt.decrypt(user.password, uid), uid)
         )

@@ -36,6 +36,7 @@ import logging
 import math
 import operator
 import os
+import pprint
 
 from django.utils.crypto import get_random_string
 
@@ -57,20 +58,165 @@ from core import crypt, lib
 from playlist import models
 
 
+def to_datetime(timestamp_str):
+    return datetime.datetime.utcfromtimestamp(int(timestamp_str) / 1000000)
+
+
+def finalize_user(user_id, avg_length):
+    '''
+    Final updates to the User entity, storing statistics and ending the library
+    update.
+    '''
+    
+    user = ndb.Key(urlsafe=user_id).get()
+    logging.info('Finalizing user {uid} library update.'.format(
+        uid=user.key.id()
+    ))
+
+    user.avg_length = avg_length
+    user.updating = False
+    user.update_stop = datetime.datetime.now()
+    del user.updated_batches
+    del user.update_lengths
+    user.put()
+    logging.info(
+        ' '.join((
+            'Library updated{scores}, {num} tracks total,',
+            'average length of {avglen}'
+        )).format(
+            scores=(
+                ' ({num_deletes} deletes, {num_updates} updates)'.format(
+                    num_deletes=user.num_deletes,
+                    num_updates=user.num_updates
+                )
+                if user.num_deletes or user.num_updates
+                else ''
+            ),
+            num=user.num_tracks,
+            avglen=datetime.timedelta(seconds=user.avg_length / 1000)
+        )
+    )
+
+def calc_geomean(user_id, length_product, num_tracks):
+    '''
+    Calculates the geometric mean from the values passed to it. Because the
+    length_product can be a very large number, this must use the decimal
+    library, which is very slow.
+    '''
+    
+    logging.info(
+        'Calculating the geometric mean of the track lengths for the user.'
+    )
+    with decimal.localcontext() as ctx:
+        ctx.prec = 64
+        power = ctx.divide(1, int(num_tracks))
+        avg_length = int(
+            ctx.power(long(length_product), power).to_integral_value()
+        )
+
+    logging.info(
+        'Geometric mean is: {gmean} milliseconds.'.format(gmean=avg_length)
+    )
+
+    deferred.defer(finalize_user, user_id, avg_length, _queue='lib-upd')
+
+
+def calc_length_product(user_id, batch_num):
+    '''
+    Calculates the product of all of the track lengths in the library.
+    This can make a very, very big number.
+    '''
+    
+    user = ndb.Key(urlsafe=user_id).get()
+    logging.info('Calculating the product of the track lengths for the user.'.format(
+        uid=user.key.id()
+    ))
+
+    if len(user.updated_batches) < batch_num:
+        logging.info('Not completed with updating... rescheduling calculation.')
+        logging.debug(
+            'Batches: {num_batches} (processed) < {batch_num} (total)'.format(
+                num_batches=len(user.updated_batches),
+                batch_num=batch_num
+            )
+        )
+        deferred.defer(calc_length_product, user_id, batch_num, _queue='lib-upd')
+        return
+
+    else:
+        logging.debug('{batch_num} total batches processed, for a total of {num} tracks.'.format(
+            batch_num=batch_num,
+            num=user.num_tracks,
+        ))
+
+    length_product = str(reduce(operator.mul, map(long, user.update_lengths), 1))
+
+    logging.info('Product of {num} track lengths is: {len_prod}'.format(
+        num=user.num_tracks,
+        len_prod=length_product
+    ))
+
+    deferred.defer(calc_geomean, user_id, length_product, user.num_tracks, _queue='lib-upd')
+
+
+@ndb.transactional
+def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_updates):
+    '''
+    Updates one batch worth of track statistics.
+    '''
+    user = ndb.Key(urlsafe=user_id).get()
+
+    if myhash not in user.updated_batches:
+        user.num_tracks += num
+        user.update_lengths.append(len_prod_piece)
+        user.updated_batches.append(myhash)
+        user.num_deletes += num_deletes
+        user.num_updates += num_updates
+        user.put()
+
+        return True
+
+    else:
+        return False
+
+
+def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, num_deletes, num_updates):
+    '''
+    Wrapper to update one batch worth of track statistics.
+    '''
+    
+    updated = count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_updates)
+
+    if updated:
+        logging.info('[Batch #{batch_num}] User counts updated'.format(
+            batch_num=batch_num
+        ))
+
+        if final:
+            logging.info(
+                '[Batch #{batch_num}] Scheduling finalizer task...'.format(
+                    batch_num=batch_num
+                )
+            )
+            deferred.defer(calc_length_product, user_id, batch_num, _queue='lib-upd')
+
+    else:
+        logging.info('[Batch #{batch_num}] Already updated, skipping.'.format(
+            batch_num=batch_num
+        ))
+
+
 def make_entity(parent_key, track, batch_num):
+    '''
+    Converts data from gmusicapi into a models.Track entity.
+    '''
     entity = models.Track(
         parent=parent_key,
         id=track['id'],
         title=track['title'],
-        created=datetime.datetime.utcfromtimestamp(
-            int(track['creationTimestamp']) / 1000000
-        ),
-        recent=datetime.datetime.utcfromtimestamp(
-            int(track['recentTimestamp']) / 1000000
-        ),
-        modified=datetime.datetime.utcfromtimestamp(
-            int(track['lastModifiedTimestamp']) / 1000000
-        ),
+        created=to_datetime(track['creationTimestamp']),
+        recent=to_datetime(track['recentTimestamp']),
+        modified=to_datetime(track['lastModifiedTimestamp']),
         play_count=int(track.get('playCount', 0)),
         duration_millis=int(track['durationMillis']),
         rating=int(track.get('rating', 0)),
@@ -111,95 +257,26 @@ def make_entity(parent_key, track, batch_num):
     with lib.suppress(KeyError):
         entity.comment = track['comment']
 
-    logging.debug('[Batch #{batch_num}] Entry:\n{data}'.format(batch_num=batch_num, data=entity))
+    logging.debug('[Batch #{batch_num}] Entry:\n{data}'.format(
+        batch_num=batch_num,
+        data=entity
+    ))
 
     return entity
 
 
-def finalize_user(user_id, batch_num):
-    user = ndb.Key(urlsafe=user_id).get()
-    logging.info('Finalizing user {uid} library update.'.format(uid=user.key.id()))
-
-    if len(user.updated_batches) < batch_num:
-        logging.info('Not completed with updating... rescheduling finalizer.')
-        logging.debug(
-            'Batches: {num_batches} (processed) < {batch_num} (total)'.format(
-                num_batches=len(user.updated_batches),
-                batch_num=batch_num
-            )
-        )
-        deferred.defer(finalize_user, user_id, batch_num)
-        return
-
-    else:
-        logging.debug('{batch_num} total batches processed.'.format(batch_num=batch_num))
-
-    length_product = reduce(operator.mul, map(long, user.update_lengths), 1)
-
-    with decimal.localcontext() as ctx:
-        ctx.prec = 64
-        power = ctx.divide(1, int(user.num_tracks))
-        user.avg_length = int(
-            ctx.power(length_product, power).to_integral_value()
-        )
-
-    del user.updated_batches
-    del user.update_lengths
-    user.updating = False
-    user.update_stop = datetime.datetime.now()
-    user.put()
+def load_batch(user_id, last_update, chunk, final, batch_num):
+    '''
+    Loads a batch of tracks into models.Track entities. This is used to do daily
+    maintenence on the library, only updating what has changed, skipping
+    unchanged tracks.
+    '''
     logging.info(
-        ' '.join((
-            'Library updated, {num} tracks total,',
-            'average length of {avglen}'
-        )).format(
-            num=user.num_tracks,
-            avglen=datetime.timedelta(seconds=user.avg_length / 1000)
+        '[Batch #{batch_num}] Processing chunk: {chunk} tracks.'.format(
+            chunk=len(chunk),
+            batch_num=batch_num,
         )
     )
-
-@ndb.transactional
-def count_updater(user_id, num, len_prod_piece, myhash, batch_num):
-    user = ndb.Key(urlsafe=user_id).get()
-
-    if myhash not in user.updated_batches:
-        user.num_tracks += num
-        user.update_lengths.append(len_prod_piece)
-        user.updated_batches.append(myhash)
-        user.put()
-
-        return True
-
-    else:
-        return False
-
-
-def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num):
-    updated = count_updater(user_id, num, len_prod_piece, myhash, batch_num)
-
-    if updated:
-        logging.info('[Batch #{batch_num}] User counts updated'.format(
-            batch_num=batch_num
-        ))
-
-        if final:
-            logging.info('[Batch #{batch_num}] Scheduling finalizer task...'.format(batch_num=batch_num))
-            deferred.defer(finalize_user, user_id, batch_num, _queue='lib-upd')
-
-    else:
-        logging.info('[Batch #{batch_num}] Already updated, skipping.'.format(
-            batch_num=batch_num
-        ))
-
-
-def load_batch(user_id, start, chunk, final, batch_num):
-    '''
-    Loads a batch of tracks into models.Track entities.
-    '''
-    logging.info('[Batch #{batch_num}] Processing chunk: {chunk} tracks.'.format(
-        chunk=len(chunk),
-        batch_num=batch_num,
-    ))
     batch = []
     futures = []
 
@@ -208,9 +285,9 @@ def load_batch(user_id, start, chunk, final, batch_num):
     # Set up keys, and figure out tests for placing into buckets.
     key_gen = (
         (
-            ndb.Key(flat=[models.Track, track['id']], parent=parent_key),
+            track['id'],
             track['deleted'],
-            int(track['lastModifiedTimestamp']) >= start
+            to_datetime(track['lastModifiedTimestamp']) >= last_update
         )
         for track in chunk
     )
@@ -219,7 +296,7 @@ def load_batch(user_id, start, chunk, final, batch_num):
         # Place keys into buckets
         deletes, batch_ids = zip(*tuple(
             (
-                key if deleted else None,
+                ndb.Key(flat=[models.Track, key], parent=parent_key) if deleted else None,
                 key if not deleted and modified else None,
             )
             for key, deleted, modified in key_gen
@@ -228,6 +305,8 @@ def load_batch(user_id, start, chunk, final, batch_num):
         # Clean up buckets
         deletes = tuple(key for key in deletes if key is not None)
         batch_ids = tuple(key for key in batch_ids if key is not None)
+        num_deletes = len(deletes)
+        num_updates = len(batch_ids)
         batch_track_gen = (track for track in chunk if track['id'] in batch_ids)
         batch = tuple(
             make_entity(parent_key, track, batch_num)
@@ -244,7 +323,10 @@ def load_batch(user_id, start, chunk, final, batch_num):
 
         if deletes:
             logging.info(
-                '[Batch #{batch_num}] Deleting {num} tracks from datastore.'.format(
+                ' '.join((
+                    '[Batch #{batch_num}] Deleting {num} tracks',
+                    'from datastore.'
+                )).format(
                     batch_num=batch_num,
                     num=len(deletes)
                 )
@@ -287,16 +369,21 @@ def load_batch(user_id, start, chunk, final, batch_num):
             myhash,
             last_tracks,
             batch_num,
+            num_deletes,
+            num_updates,
             _queue='lib-upd'
         )
 
     if final is not None:
-        logging.info('[Batch #{batch_num}] All batches updated.'.format(batch_num=batch_num))
+        logging.info('[Batch #{batch_num}] All batches updated.'.format(
+            batch_num=batch_num
+        ))
 
 
-def initialize_batch(user_id, start, chunk, final, batch_num):
+def initialize_batch(user_id, last_update, chunk, final, batch_num):
     '''
-    Loads a batch of tracks into models.Track entities.
+    Loads a batch of tracks into models.Track entities. This is used to
+    initialize the library (first run).
     '''
     logging.info(
         '[Batch #{batch_num}] Initializing chunk: {chunk} tracks'.format(
@@ -316,7 +403,11 @@ def initialize_batch(user_id, start, chunk, final, batch_num):
         if not track['deleted']
     )
 
-    logging.info('[Batch #{batch_num}] Putting {num} tracks into datastore.'.format(batch_num=batch_num, num=len(batch)))
+    logging.info(
+        '[Batch #{batch_num}] Putting {num} tracks into datastore.'.format(
+            batch_num=batch_num, num=len(batch)
+        )
+    )
     futures.extend(ndb.put_multi_async(batch))
     ndb.Future.wait_all(futures)
     logging.info(
@@ -350,11 +441,15 @@ def initialize_batch(user_id, start, chunk, final, batch_num):
         myhash,
         last_tracks,
         batch_num,
+        0,
+        0,
         _queue='lib-upd'
     )
 
     if final is not None:
-        logging.info('[Batch #{batch_num}] All batches initialized.'.format(batch_num=batch_num))
+        logging.info('[Batch #{batch_num}] All batches initialized.'.format(
+            batch_num=batch_num
+        ))
 
 
 @contextlib.contextmanager
@@ -383,7 +478,7 @@ def musicapi_connector(user_id, encrypted_passwd):
 
 def get_batch(
     user_id,
-    start,
+    last_update,
     initial,
     encrypted_passwd,
     _token=None,
@@ -402,7 +497,14 @@ def get_batch(
 
     with musicapi_connector(user_id, encrypted_passwd) as api:
         for batch_num in xrange(start, stop):
-            logging.info('[Batch #{batch_num}] Retrieving batch from Google Play Music'.format(batch_num=batch_num))
+            logging.info(
+                ' '.join((
+                    '[Batch #{batch_num}] Retrieving batch',
+                    'from Google Play Music'
+                )).format(
+                    batch_num=batch_num
+                )
+            )
             results = api._make_call(
                 gmusicapi.protocol.mobileclient.ListTracks,
                 start_token=_token,
@@ -427,7 +529,7 @@ def get_batch(
             deferred.defer(
                 initialize_batch if initial else load_batch,
                 user_id,
-                start,
+                last_update,
                 results,
                 final_track_count,
                 batch_num,
@@ -447,7 +549,7 @@ def get_batch(
         deferred.defer(
             get_batch,
             user_id,
-            start,
+            last_update,
             initial,
             crypt.encrypt(crypt.decrypt(encrypted_passwd, uid), uid),
             _token=_token,

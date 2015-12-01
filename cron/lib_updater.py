@@ -38,6 +38,8 @@ import operator
 import os
 import pprint
 
+from Crypto.Random import random
+
 from django.utils.crypto import get_random_string
 
 from google.appengine.ext import deferred
@@ -67,7 +69,7 @@ def finalize_user(user_id, avg_length):
     Final updates to the User entity, storing statistics and ending the library
     update.
     '''
-    
+
     user = ndb.Key(urlsafe=user_id).get()
     logging.info('Finalizing user {uid} library update.'.format(
         uid=user.key.id()
@@ -103,7 +105,7 @@ def calc_geomean(user_id, length_product, num_tracks):
     length_product can be a very large number, this must use the decimal
     library, which is very slow.
     '''
-    
+
     logging.info(
         'Calculating the geometric mean of the track lengths for the user.'
     )
@@ -126,7 +128,7 @@ def calc_length_product(user_id, batch_num):
     Calculates the product of all of the track lengths in the library.
     This can make a very, very big number.
     '''
-    
+
     user = ndb.Key(urlsafe=user_id).get()
     logging.info('Calculating the product of the track lengths for the user.'.format(
         uid=user.key.id()
@@ -184,7 +186,7 @@ def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, nu
     '''
     Wrapper to update one batch worth of track statistics.
     '''
-    
+
     updated = count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_updates)
 
     if updated:
@@ -206,7 +208,7 @@ def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, nu
         ))
 
 
-def make_entity(parent_key, track, batch_num):
+def make_entity(parent_key, track, batch_num, make_rand=False):
     '''
     Converts data from gmusicapi into a models.Track entity.
     '''
@@ -223,6 +225,9 @@ def make_entity(parent_key, track, batch_num):
         artist=track['artist'],
         album=track['album'],
     )
+
+    if make_rand:
+        entity.rand_num = int(random.randrange(2**32))
 
     with lib.suppress(KeyError, IndexError):
         entity.artist_art = track['artistArtRef'][0]['url']
@@ -398,7 +403,7 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
 
     # Set up keys, and figure out tests for placing into buckets.
     batch = tuple(
-        make_entity(parent_key, track, batch_num)
+        make_entity(parent_key, track, batch_num, make_rand=True)
         for track in chunk
         if not track['deleted']
     )

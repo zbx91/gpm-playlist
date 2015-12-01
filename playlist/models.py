@@ -55,3 +55,4 @@ class Track(ndb.Model):
     comment = ndb.StringProperty(indexed=False, default='')  # Used for possibly figuring out rating, partition, and holidays
     partition = ndb.StringProperty()  # My field! Referemces Partition model id
     holidays = ndb.StringProperty(repeated=True)  # My field! References Holiday model id
+    rand_num = ndb.IntegerProperty()  # My field! For use with random selections of tracks

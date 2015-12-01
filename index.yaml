@@ -70,6 +70,7 @@ indexes:
   properties:
   - name: partition
   - name: rating
+  - name: rand_num
   
 # Holiday LRA
 - kind: Track

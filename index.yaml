@@ -43,7 +43,7 @@ indexes:
     direction: desc
   - name: created
     direction: desc
-  
+
 # LRP
 - kind: Track
   ancestor: yes
@@ -54,24 +54,26 @@ indexes:
     direction: desc
   - name: modified
     direction: desc
-  
+
 # LOP
 - kind: Track
   ancestor: yes
   properties:
   - name: partition
   - name: rating
+  - name: modified
   - name: play_count
     direction: desc
-  
+
 # RAND
 - kind: Track
   ancestor: yes
   properties:
   - name: partition
   - name: rating
+  - name: modified
   - name: rand_num
-  
+
 # Holiday LRA
 - kind: Track
   ancestor: yes
@@ -82,7 +84,7 @@ indexes:
     direction: desc
   - name: created
     direction: desc
-  
+
 # Holiday LRP
 - kind: Track
   ancestor: yes
@@ -93,23 +95,26 @@ indexes:
     direction: desc
   - name: modified
     direction: desc
-  
+
 # Holiday LOP
 - kind: Track
   ancestor: yes
   properties:
   - name: holidays
   - name: rating
+  - name: modified
   - name: play_count
     direction: desc
-  
+
 # Holiday RAND
 - kind: Track
   ancestor: yes
   properties:
   - name: holidays
   - name: rating
-  
+  - name: modified
+  - name: rand_num
+
 - kind: Track
   ancestor: yes
   properties:
@@ -117,7 +122,7 @@ indexes:
   - name: disc_number
   - name: track_number
   - name: title
-  
+
 - kind: Track
   ancestor: yes
   properties:
@@ -126,4 +131,3 @@ indexes:
   - name: disc_number
   - name: track_number
   - name: title
-  

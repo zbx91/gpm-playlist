@@ -102,10 +102,25 @@ def finalize_user(user_id, avg_length):
 def calc_integer_form(user_id, gmean):
     '''
     The calculated geometric mean is rounded to an integer value.
+    This follows standard "significant digits" rules -- all of the numbers being
+    averaged are integers, so the significant digits should be the same for the
+    result (an integer).
+
+    The geometric mean is defined as the product of all values is then raised to
+    the power of the inverse of the number of values (taking the number of
+    values root). This is dealing with redicuously large numbers, fortunately
+    that is able to be accomplished in Python through the use of long integers
+    and the decimal library.
+
+    The geometric mean helps remove some "noisiness" from the calculation, and
+    gives a good conservative value to be able to rely on for figuring out
+    exactly how many tracks to put in the daily playlist without seriously
+    overdoing it with a playlist that is far too big, while not running out of
+    tracks for the "daily playlist".
     '''
 
     logging.info(
-        'Calculating the geometric mean of the track lengths for the user.'
+        'Calculating the integer geometric mean of the track lengths for the user.'
     )
     with decimal.localcontext() as ctx:
         ctx.prec = 64
@@ -125,7 +140,7 @@ def calc_geomean(user_id, length_product, power):
     '''
 
     logging.info(
-        'Calculating the geometric mean of the track lengths for the user.'
+        'Calculating the real geometric mean of the track lengths for the user.'
     )
     with decimal.localcontext() as ctx:
         ctx.prec = 64
@@ -145,7 +160,7 @@ def calc_power(user_id, length_product, num_tracks):
     '''
 
     logging.info(
-        'Calculating the geometric mean of the track lengths for the user.'
+        'Calculating the power to use for the geometric mean of the track lengths for the user.'
     )
     with decimal.localcontext() as ctx:
         ctx.prec = 64
@@ -193,7 +208,7 @@ def calc_length_product(user_id, batch_num):
         len_prod=length_product
     ))
 
-    deferred.defer(calc_geomean, user_id, length_product, user.num_tracks, _queue='lib-upd')
+    deferred.defer(calc_power, user_id, length_product, user.num_tracks, _queue='lib-upd')
 
 
 @ndb.transactional
@@ -346,10 +361,10 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
         # Clean up buckets
         deletes = tuple(key for key in deletes if key is not None)
         merge_ids = tuple(key for key in merge_ids if key is not None)
-        
+
         num_deletes = len(deletes)
         num_merges = len(merge_ids)
-        
+
         futures = []
 
         if merge_ids:
@@ -358,7 +373,7 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
                 for track in chunk
                 if track['id'] in merge_ids
             )
-    
+
             logging.info(
                 ' '.join((
                     '[Batch #{batch_num}] Updating {num}',
@@ -368,9 +383,9 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
                     num=num_merges
                 )
             )
-    
+
             futures.extend(ndb.put_multi_async(merges))
-    
+
         if deletes:
             logging.info(
                 ' '.join((
@@ -382,7 +397,7 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
                 )
             )
             futures.extend(ndb.delete_multi_async(deletes))
-    
+
         if futures:
             ndb.Future.wait_all(futures)
 
@@ -425,7 +440,7 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
             delcount=num_deletes
         )
     )
-    
+
     if final is not None:
         logging.info('[Batch #{batch_num}] All batches updated.'.format(
             batch_num=batch_num
@@ -443,7 +458,7 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
             batch_num=batch_num,
         )
     )
-    
+
     parent_key = ndb.Key(urlsafe=user_id)  # Library tracks tied to a user.
 
     myhash = base64.urlsafe_b64encode(
@@ -454,7 +469,7 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
             )
         ).digest()
     )
-    
+
     # Set up keys, and figure out tests for placing into buckets.
     batch = tuple(
         make_entity(parent_key, track, batch_num)
@@ -468,11 +483,11 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
                 batch_num=batch_num, num=len(batch)
             )
         )
-        
+
         futures = ndb.put_multi_async(batch)
-        
+
         ndb.Future.wait_all(futures)
-        
+
     num_tracks = len(batch)
     all_lens = tuple(
         int(track['durationMillis'])

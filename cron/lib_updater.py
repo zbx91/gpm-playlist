@@ -87,11 +87,11 @@ def finalize_user(user_id, avg_length):
             'average length of {avglen}'
         )).format(
             scores=(
-                ' ({num_deletes} deletes, {num_updates} updates)'.format(
+                ' ({num_deletes} deletes, {num_merges} updates)'.format(
                     num_deletes=user.num_deletes,
-                    num_updates=user.num_updates
+                    num_merges=user.num_merges
                 )
-                if user.num_deletes or user.num_updates
+                if user.num_deletes or user.num_merges
                 else ''
             ),
             num=user.num_tracks,
@@ -99,7 +99,25 @@ def finalize_user(user_id, avg_length):
         )
     )
 
-def calc_geomean(user_id, length_product, num_tracks):
+def calc_integer_form(user_id, gmean):
+    '''
+    The calculated geometric mean is rounded to an integer value.
+    '''
+
+    logging.info(
+        'Calculating the geometric mean of the track lengths for the user.'
+    )
+    with decimal.localcontext() as ctx:
+        ctx.prec = 64
+        avg_length = int(gmean.to_integral_value())
+
+    logging.info(
+        'Integer Geometric mean is: {gmean} milliseconds.'.format(gmean=avg_length)
+    )
+
+    deferred.defer(finalize_user, user_id, avg_length, _queue='lib-upd')
+
+def calc_geomean(user_id, length_product, power):
     '''
     Calculates the geometric mean from the values passed to it. Because the
     length_product can be a very large number, this must use the decimal
@@ -111,16 +129,33 @@ def calc_geomean(user_id, length_product, num_tracks):
     )
     with decimal.localcontext() as ctx:
         ctx.prec = 64
-        power = ctx.divide(1, int(num_tracks))
-        avg_length = int(
-            ctx.power(long(length_product), power).to_integral_value()
-        )
+        gmean = ctx.power(long(length_product), power)
 
     logging.info(
-        'Geometric mean is: {gmean} milliseconds.'.format(gmean=avg_length)
+        'Real Geometric mean is: {gmean} milliseconds.'.format(gmean=gmean)
     )
 
-    deferred.defer(finalize_user, user_id, avg_length, _queue='lib-upd')
+    deferred.defer(calc_integer_form, user_id, gmean, _queue='lib-upd')
+
+
+def calc_power(user_id, length_product, num_tracks):
+    '''
+    Calculates the power to use for the gemetric mean, which is the inverse of
+    the number of tracks that is given.
+    '''
+
+    logging.info(
+        'Calculating the geometric mean of the track lengths for the user.'
+    )
+    with decimal.localcontext() as ctx:
+        ctx.prec = 64
+        power = ctx.divide(1, int(num_tracks))
+
+    logging.info(
+        'Power is: {power}'.format(power=power)
+    )
+
+    deferred.defer(calc_geomean, user_id, length_product, power, _queue='lib-upd')
 
 
 def calc_length_product(user_id, batch_num):
@@ -162,7 +197,7 @@ def calc_length_product(user_id, batch_num):
 
 
 @ndb.transactional
-def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_updates):
+def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes=0, num_merges=0):
     '''
     Updates one batch worth of track statistics.
     '''
@@ -173,7 +208,7 @@ def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, 
         user.update_lengths.append(len_prod_piece)
         user.updated_batches.append(myhash)
         user.num_deletes += num_deletes
-        user.num_updates += num_updates
+        user.num_merges += num_merges
         user.put()
 
         return True
@@ -182,12 +217,12 @@ def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, 
         return False
 
 
-def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, num_deletes, num_updates):
+def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, num_deletes, num_merges):
     '''
     Wrapper to update one batch worth of track statistics.
     '''
 
-    updated = count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_updates)
+    updated = count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_merges)
 
     if updated:
         logging.info('[Batch #{batch_num}] User counts updated'.format(
@@ -208,7 +243,7 @@ def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, nu
         ))
 
 
-def make_entity(parent_key, track, batch_num, make_rand=False):
+def make_entity(parent_key, track, batch_num):
     '''
     Converts data from gmusicapi into a models.Track entity.
     '''
@@ -224,10 +259,8 @@ def make_entity(parent_key, track, batch_num, make_rand=False):
         rating=int(track.get('rating', 0)),
         artist=track['artist'],
         album=track['album'],
+        rand_num=int(random.randrange(2**32)),
     )
-
-    if make_rand:
-        entity.rand_num = int(random.randrange(2**32))
 
     with lib.suppress(KeyError, IndexError):
         entity.artist_art = track['artistArtRef'][0]['url']
@@ -282,103 +315,117 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
             batch_num=batch_num,
         )
     )
-    batch = []
-    futures = []
 
     parent_key = ndb.Key(urlsafe=user_id)  # Library tracks tied to a user.
 
-    # Set up keys, and figure out tests for placing into buckets.
-    key_gen = (
-        (
-            track['id'],
-            track['deleted'],
-            to_datetime(track['lastModifiedTimestamp']) >= last_update
-        )
-        for track in chunk
+    myhash = base64.urlsafe_b64encode(
+        hashlib.md5(
+            '::'.join(
+                track['id']
+                for track in chunk
+            )
+        ).digest()
     )
 
-    with lib.suppress(ValueError):
+    try:
         # Place keys into buckets
-        deletes, batch_ids = zip(*tuple(
+        deletes, merge_ids = zip(*tuple(
             (
-                ndb.Key(flat=[models.Track, key], parent=parent_key) if deleted else None,
-                key if not deleted and modified else None,
+                ndb.Key(flat=[models.Track, track['id']], parent=parent_key)
+                if track['deleted']
+                else None,
+
+                track['id']
+                if not track['deleted']
+                else None,
             )
-            for key, deleted, modified in key_gen
+            for track in chunk
+            if to_datetime(track['lastModifiedTimestamp']) >= last_update
         ))
 
         # Clean up buckets
         deletes = tuple(key for key in deletes if key is not None)
-        batch_ids = tuple(key for key in batch_ids if key is not None)
+        merge_ids = tuple(key for key in merge_ids if key is not None)
+        
         num_deletes = len(deletes)
-        num_updates = len(batch_ids)
-        batch_track_gen = (track for track in chunk if track['id'] in batch_ids)
-        batch = tuple(
-            make_entity(parent_key, track, batch_num)
-            for track in batch_track_gen
-        )
+        num_merges = len(merge_ids)
+        
+        futures = []
 
-        logging.info(
-            '[Batch #{batch_num}] Putting {num} tracks into datastore.'.format(
-                batch_num=batch_num,
-                num=len(batch)
+        if merge_ids:
+            merges = tuple(
+                make_entity(parent_key, track, batch_num)
+                for track in chunk
+                if track['id'] in merge_ids
             )
-        )
-        futures.extend(ndb.put_multi_async(batch))
-
+    
+            logging.info(
+                ' '.join((
+                    '[Batch #{batch_num}] Updating {num}',
+                    'tracks in datastore.'
+                )).format(
+                    batch_num=batch_num,
+                    num=num_merges
+                )
+            )
+    
+            futures.extend(ndb.put_multi_async(merges))
+    
         if deletes:
             logging.info(
                 ' '.join((
-                    '[Batch #{batch_num}] Deleting {num} tracks',
-                    'from datastore.'
+                    '[Batch #{batch_num}] Deleting {num}',
+                    'tracks from datastore.'
                 )).format(
                     batch_num=batch_num,
-                    num=len(deletes)
+                    num=num_deletes
                 )
             )
             futures.extend(ndb.delete_multi_async(deletes))
+    
+        if futures:
+            ndb.Future.wait_all(futures)
 
-        ndb.Future.wait_all(futures)
-        logging.info(
-            ' '.join((
-                '[Batch #{batch_num}] Completed: {count} tracks updated,',
-                '{delcount} deleted.'
-            )).format(
-                batch_num=batch_num,
-                count=len(batch),
-                delcount=len(deletes)
-            )
-        )
+    except ValueError:
+        deletes = merge_ids = ()
+        num_deletes = num_merges = 0
 
-        myhash = base64.urlsafe_b64encode(
-            hashlib.md5(
-                '::'.join(
-                    track['id']
-                    for track in chunk
-                )
-            ).digest()
-        )
-        num_tracks = len(chunk) - len(deletes)
-        all_lens = tuple(
-            int(track['durationMillis'])
-            for track in chunk
-            if not track['deleted']
-        )
-        length_product = str(reduce(operator.mul, all_lens, 1))
-        last_tracks = final is not None
-        deferred.defer(
-            update_num_tracks,
-            user_id,
-            num_tracks,
-            length_product,
-            myhash,
-            last_tracks,
-            batch_num,
-            num_deletes,
-            num_updates,
-            _queue='lib-upd'
-        )
+    num_tracks = len(chunk) - len(deletes)
 
+    all_lens = tuple(
+        int(track['durationMillis'])
+        for track in chunk
+        if not track['deleted']
+    )
+    length_product = str(reduce(operator.mul, all_lens, 1))
+
+    last_tracks = final is not None
+
+    deferred.defer(
+        update_num_tracks,
+        user_id,
+        num_tracks,
+        length_product,
+        myhash,
+        last_tracks,
+        batch_num,
+        num_deletes,
+        num_merges,
+        _queue='lib-upd'
+    )
+
+    logging.info(
+        ' '.join((
+            '[Batch #{batch_num}] Completed: {count} processed;',
+            '{updcount} merged; {delcount} deleted'
+        )).format(
+            batch_num=batch_num,
+            count=num_tracks,
+            updcount=num_merges,
+            delcount=num_deletes
+        )
+    )
+    
     if final is not None:
         logging.info('[Batch #{batch_num}] All batches updated.'.format(
             batch_num=batch_num
@@ -396,31 +443,8 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
             batch_num=batch_num,
         )
     )
-    batch = []
-    futures = []
-
+    
     parent_key = ndb.Key(urlsafe=user_id)  # Library tracks tied to a user.
-
-    # Set up keys, and figure out tests for placing into buckets.
-    batch = tuple(
-        make_entity(parent_key, track, batch_num, make_rand=True)
-        for track in chunk
-        if not track['deleted']
-    )
-
-    logging.info(
-        '[Batch #{batch_num}] Putting {num} tracks into datastore.'.format(
-            batch_num=batch_num, num=len(batch)
-        )
-    )
-    futures.extend(ndb.put_multi_async(batch))
-    ndb.Future.wait_all(futures)
-    logging.info(
-        '[Batch #{batch_num}] Completed: {num_tracks} tracks added.'.format(
-            batch_num=batch_num,
-            num_tracks=len(batch),
-        )
-    )
 
     myhash = base64.urlsafe_b64encode(
         hashlib.md5(
@@ -430,6 +454,25 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
             )
         ).digest()
     )
+    
+    # Set up keys, and figure out tests for placing into buckets.
+    batch = tuple(
+        make_entity(parent_key, track, batch_num)
+        for track in chunk
+        if not track['deleted']
+    )
+
+    if batch:
+        logging.info(
+            '[Batch #{batch_num}] Putting {num} tracks into datastore.'.format(
+                batch_num=batch_num, num=len(batch)
+            )
+        )
+        
+        futures = ndb.put_multi_async(batch)
+        
+        ndb.Future.wait_all(futures)
+        
     num_tracks = len(batch)
     all_lens = tuple(
         int(track['durationMillis'])
@@ -446,9 +489,14 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
         myhash,
         last_tracks,
         batch_num,
-        0,
-        0,
         _queue='lib-upd'
+    )
+
+    logging.info(
+        '[Batch #{batch_num}] Completed: {num_tracks} tracks added.'.format(
+            batch_num=batch_num,
+            num_tracks=len(batch),
+        )
     )
 
     if final is not None:

@@ -15,7 +15,7 @@ class User(ndb.Model):
     num_tracks = ndb.IntegerProperty(indexed=False)
     avg_length = ndb.IntegerProperty(indexed=False)
     update_lengths = ndb.StringProperty(indexed=False, repeated=True)
-    num_updates = ndb.IntegerProperty(indexed=False)
+    num_merges = ndb.IntegerProperty(indexed=False)
     num_deletes = ndb.IntegerProperty(indexed=False)
 
 class Partition(ndb.Model):

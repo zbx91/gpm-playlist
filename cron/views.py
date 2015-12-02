@@ -27,7 +27,7 @@ def autoload_libraries(request):  # Cron Job.
         user.updating = True
         user.num_tracks = 0
         user.num_deletes = 0
-        user.num_updates = 0
+        user.num_merges = 0
         del user.updated_batches
         del user.update_lengths
         del user.avg_length

@@ -3,6 +3,7 @@ import datetime
 import itertools
 import json
 import logging
+import operator
 import pprint
 import time
 import urllib
@@ -117,14 +118,136 @@ def get_tracks(request):
     user = users.get_current_user()
     if user is None:
         return HttpResponse('Not logged in.')
+
+    cursor = ndb.Cursor(urlsafe=request.GET.get('next_page', None))
+    batch_size = int(request.GET.get('batch_size', 100))
+
+    # Set up filters
+
+    filter_param_gen = (
+        filter_param.split(',')
+        for filter_param in request.GET.getlist('filter', [])
+    )
+
+    filter_name_split_gen = (
+        (
+            param[0],
+            iter(param[1:])
+        )
+        for param in filter_param_gen
+    )
+
+    filter_oper_parse_gen = (
+        (
+            getattr(models.Track, name),
+            (
+                (
+                    constraint[:2],
+                    constraint[2:],
+                ) if constraint[:2] in ('>=', '<=', '!=')
+                else (
+                    constraint[:1],
+                    constraint[1:],
+                ) if constraint[:1] in ('=', '<', '>')
+                else (constraint, )
+                for constraint in constraints
+            )
+        )
+        for name, constraints in filter_name_split_gen
+    )
+
+    filter_oper_split_gen = (
+        (field, ) + tuple(
+            zip(
+                *tuple(
+                    (
+                        constraint if len(constraint) == 2 else None,
+                        constraint if len(constraint) == 1 else None,
+                    )
+                    for constraint in constraints
+                )
+            )
+        )
+        for field, constraints in filter_oper_parse_gen
+    )
+
+    filter_oper_condense_gen = (
+        (
+            field,
+            tuple(constr for constr in oper_constr if constr is not None),
+            tuple(constr for constrs in in_constr if constrs is not None for constr in constrs if constr is not None),
+        )
+        for field, oper_constr, in_constr in filter_oper_split_gen
+    )
+
+    def conv_value(field, value):
+        logging.debug((field, value))
+        if value == 'None':
+            return None
+
+        elif isinstance(field, ndb.IntegerProperty):
+            return int(value)
+
+        elif isinstance(field, ndb.DateTimeProperty):
+            return datetime.datetime.strptime(value, '%Y-%m-%d %H:%M:%S')
+
+        else:
+            return value
+
+    filter_oper_convert_gen = (
+        itertools.chain(
+            (
+                (
+                    (
+                        operator.ne if oper == '!='
+                        else operator.gt if oper == '>'
+                        else operator.ge if oper == '>='
+                        else operator.lt if oper == '<'
+                        else operator.le if oper == '<='
+                        else operator.eq
+                    )(field, conv_value(field, value))
+                    for oper, value in oper_constr
+                ) if oper_constr else (None, )
+            ), (
+                field.IN(tuple(conv_value(field, value) for value in in_constr))
+                if len(in_constr) > 1
+                else operator.eq(field, conv_value(field, in_constr[0]))
+                if len(in_constr) == 1
+                else None,
+            )
+        )
+        for field, oper_constr, in_constr in filter_oper_condense_gen
+    )
+
+    filters = tuple(
+        constr
+        for constrs in filter_oper_convert_gen
+        for constr in constrs
+        if constr is not None
+    )
+
+    # Set up sorting
+
+    sort_gen = (
+        -getattr(models.Track, param[1:])
+        if param[0] == '-' else
+        getattr(models.Track, param)
+        for param in itertools.chain(request.GET.getlist('sort', []), ('key', ))
+    )
+
     user_id = ndb.Key(models.User, user.user_id())
-    query = models.Track.query(ancestor=user_id)
-    cursor = None
-    with lib.suppress(KeyError):
-        cursor = ndb.Cursor(urlsafe=request.GET['next_page'])
-    batch_size = 100
-    with lib.suppress(KeyError):
-        batch_size = int(request.GET['batch_size'])
+
+    if len(filters) == 1:
+        query = models.Track.query(filters[0], ancestor=user_id)
+
+    elif len(filters) > 1:
+        query = models.Track.query(ndb.AND(*filters), ancestor=user_id)
+
+    else:
+        query = models.Track.query(ancestor=user_id)
+
+    for sorter in sort_gen:
+        query = query.order(sorter)
 
     track_batch, next_cursor, more = query.fetch_page(
         batch_size,
@@ -133,8 +256,8 @@ def get_tracks(request):
 
     return HttpResponse(
         json.dumps({
-            'next_page': next_cursor.urlsafe() if next_cursor is not None else None,
-            'more_tracks': more,
+            'next_page': next_cursor.urlsafe() if next_cursor is not None and more else None,
+            'batch_size': batch_size,
             'tracks': tuple(
                 {
                     'id': track.key.id(),

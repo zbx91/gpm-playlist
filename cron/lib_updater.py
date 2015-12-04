@@ -38,8 +38,6 @@ import operator
 import os
 import pprint
 
-from Crypto.Random import random
-
 from django.utils.crypto import get_random_string
 
 from google.appengine.ext import deferred
@@ -226,22 +224,26 @@ def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes=0
         user.num_merges += num_merges
         user.put()
 
-        return True
+        return True, user.num_tracks, user.num_deletes, user.num_merges, len(user.updated_batches)
 
     else:
-        return False
+        return False, 0, 0, 0
 
 
-def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, num_deletes, num_merges):
+def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, num_deletes=0, num_merges=0):
     '''
     Wrapper to update one batch worth of track statistics.
     '''
 
-    updated = count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_merges)
+    updated, tracks, deletes, merges, batches = count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_merges)
 
     if updated:
-        logging.info('[Batch #{batch_num}] User counts updated'.format(
-            batch_num=batch_num
+        logging.info('[Batch #{batch_num}] User counts updated: {tracks} tracks, {deletes} deletes, {merges} merges, {batches} batches processed'.format(
+            batch_num=batch_num,
+            tracks=tracks,
+            deletes=deletes,
+            merges=merges,
+            batches=batches
         ))
 
         if final:
@@ -267,14 +269,12 @@ def make_entity(parent_key, track, batch_num):
         id=track['id'],
         title=track['title'],
         created=to_datetime(track['creationTimestamp']),
-        recent=to_datetime(track['recentTimestamp']),
         modified=to_datetime(track['lastModifiedTimestamp']),
         play_count=int(track.get('playCount', 0)),
         duration_millis=int(track['durationMillis']),
         rating=int(track.get('rating', 0)),
         artist=track['artist'],
         album=track['album'],
-        rand_num=int(random.randrange(2**32)),
     )
 
     with lib.suppress(KeyError, IndexError):

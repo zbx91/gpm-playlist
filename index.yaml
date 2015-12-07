@@ -228,3 +228,12 @@ indexes:
   - name: album
   - name: disc_number
   - name: track_number
+
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album_artist
+  - name: album
+  - name: disc_number
+  - name: track_number

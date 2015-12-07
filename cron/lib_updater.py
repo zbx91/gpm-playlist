@@ -227,7 +227,7 @@ def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes=0
         return True, user.num_tracks, user.num_deletes, user.num_merges, len(user.updated_batches)
 
     else:
-        return False, 0, 0, 0
+        return False, 0, 0, 0, 0
 
 
 def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, num_deletes=0, num_merges=0):

@@ -114,6 +114,7 @@ def erase_library(request):
         )).format(user=user.email())
     )
 
+
 def get_tracks(request):
     user = users.get_current_user()
     if user is None:
@@ -185,6 +186,9 @@ def get_tracks(request):
         if value == 'None':
             return None
 
+        elif field._name == 'rand_num':
+            return int(value)
+
         elif isinstance(field, ndb.IntegerProperty):
             return int(value)
 
@@ -237,14 +241,16 @@ def get_tracks(request):
 
     user_id = ndb.Key(models.User, user.user_id())
 
+    query_args = ()
+    query_kwargs = {'ancestor': user_id}
+
     if len(filters) == 1:
-        query = models.Track.query(filters[0], ancestor=user_id)
+        query_args += (filters[0], )
 
     elif len(filters) > 1:
-        query = models.Track.query(ndb.AND(*filters), ancestor=user_id)
+        query_args += (ndb.AND(*filters), )
 
-    else:
-        query = models.Track.query(ancestor=user_id)
+    query = models.Track.query(*query_args, **query_kwargs)
 
     for sorter in sort_gen:
         query = query.order(sorter)
@@ -292,6 +298,48 @@ def get_tracks(request):
                     'holidays': tuple(holiday for holiday in track.holidays),
                 }
                 for track in track_batch
+            ),
+        }),
+        content_type='text/json'
+    )
+    
+    
+def get_albums(request):
+    user = users.get_current_user()
+    user_id = ndb.Key(models.User, user.user_id())
+    
+    query = models.Track.query(
+        projection=[
+            'album',
+            'album_artist',
+            'album_art',
+            'total_disc_count',
+            'year',
+            'duration_millis',
+            'rating',
+            'partitions',
+            'holidays',
+        ],
+        ancestor=user_id
+    )
+
+    results = query.fetch()
+
+    return HttpResponse(
+        json.dumps({
+            'albums': tuple(
+                {
+                    'album': album.album,
+                    'album_artist': album.album_artist,
+                    'album_art': album.album_art,
+                    'total_disc_count': album.total_disc_count,
+                    'year': album.year,
+                    'duration_millis': album.duration_millis,
+                    'rating': album.rating,
+                    'partitions': album.partition,
+                    'holidays': tuple(holiday for holiday in album.holidays),
+                }
+                for album in results
             ),
         }),
         content_type='text/json'

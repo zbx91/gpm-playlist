@@ -315,11 +315,8 @@ def get_albums(request):
             'album_art',
             'total_disc_count',
             'year',
-            'duration_millis',
-            'rating',
-            'partitions',
-            'holidays',
         ],
+        distinct=True,
         ancestor=user_id
     )
 
@@ -334,10 +331,6 @@ def get_albums(request):
                     'album_art': album.album_art,
                     'total_disc_count': album.total_disc_count,
                     'year': album.year,
-                    'duration_millis': album.duration_millis,
-                    'rating': album.rating,
-                    'partitions': album.partition,
-                    'holidays': tuple(holiday for holiday in album.holidays),
                 }
                 for album in results
             ),

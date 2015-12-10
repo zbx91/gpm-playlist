@@ -81,7 +81,7 @@ def finalize_user(user_id, avg_length):
     user.put()
     logging.info(
         ' '.join((
-            'Library updated{scores}, {num} tracks total,',
+            'Library updated{scores}, {num} tracks total ({usable} tracks usable),',
             'average length of {avglen}'
         )).format(
             scores=(
@@ -93,6 +93,7 @@ def finalize_user(user_id, avg_length):
                 else ''
             ),
             num=user.num_tracks,
+            usable=user.usable_num_tracks,
             avglen=datetime.timedelta(seconds=user.avg_length / 1000)
         )
     )
@@ -196,21 +197,21 @@ def calc_length_product(user_id, batch_num):
     else:
         logging.debug('{batch_num} total batches processed, for a total of {num} tracks.'.format(
             batch_num=batch_num,
-            num=user.num_tracks,
+            num=user.usable_num_tracks,
         ))
 
     length_product = str(reduce(operator.mul, map(long, user.update_lengths), 1))
 
     logging.info('Product of {num} track lengths is: {len_prod}'.format(
-        num=user.num_tracks,
+        num=user.usable_num_tracks,
         len_prod=length_product
     ))
 
-    deferred.defer(calc_power, user_id, length_product, user.num_tracks, _queue='lib-upd')
+    deferred.defer(calc_power, user_id, length_product, user.usable_num_tracks, _queue='lib-upd')
 
 
 @ndb.transactional
-def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes=0, num_merges=0):
+def count_updater(user_id, num, usable_num, len_prod_piece, myhash, batch_num, num_deletes=0, num_merges=0):
     '''
     Updates one batch worth of track statistics.
     '''
@@ -218,29 +219,33 @@ def count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes=0
 
     if myhash not in user.updated_batches:
         user.num_tracks += num
+        user.usable_num_tracks += usable_num
         user.update_lengths.append(len_prod_piece)
         user.updated_batches.append(myhash)
         user.num_deletes += num_deletes
         user.num_merges += num_merges
         user.put()
 
-        return True, user.num_tracks, user.num_deletes, user.num_merges, len(user.updated_batches)
+        success = True
 
     else:
-        return False, 0, 0, 0, 0
+        success = False
+        
+    return success, user.num_tracks, user.usable_num_tracks, user.num_deletes, user.num_merges, len(user.updated_batches)
 
 
-def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, num_deletes=0, num_merges=0):
+def update_num_tracks(user_id, num, usable_num, len_prod_piece, myhash, final, batch_num, num_deletes=0, num_merges=0):
     '''
     Wrapper to update one batch worth of track statistics.
     '''
 
-    updated, tracks, deletes, merges, batches = count_updater(user_id, num, len_prod_piece, myhash, batch_num, num_deletes, num_merges)
+    updated, tracks, usable, deletes, merges, batches = count_updater(user_id, num, usable_num, len_prod_piece, myhash, batch_num, num_deletes, num_merges)
 
     if updated:
-        logging.info('[Batch #{batch_num}] User counts updated: {tracks} tracks, {deletes} deletes, {merges} merges, {batches} batches processed'.format(
+        logging.info('[Batch #{batch_num}] User counts updated: {tracks} tracks ({usable} usable), {deletes} deletes, {merges} merges, {batches} batches processed'.format(
             batch_num=batch_num,
             tracks=tracks,
+            usable=usable,
             deletes=deletes,
             merges=merges,
             batches=batches
@@ -255,8 +260,13 @@ def update_num_tracks(user_id, num, len_prod_piece, myhash, final, batch_num, nu
             deferred.defer(calc_length_product, user_id, batch_num, _queue='lib-upd')
 
     else:
-        logging.info('[Batch #{batch_num}] Already updated, skipping.'.format(
-            batch_num=batch_num
+        logging.info('[Batch #{batch_num}] Already updated, skipping ({tracks} tracks ({usable} usable), {deletes} deletes, {merges} merges, {batches} batches).'.format(
+            batch_num=batch_num,
+            tracks=tracks,
+            usable=usable,
+            deletes=deletes,
+            merges=merges,
+            batches=batches
         ))
 
 
@@ -318,7 +328,7 @@ def make_entity(parent_key, track, batch_num):
     return entity
 
 
-def load_batch(user_id, last_update, chunk, final, batch_num):
+def load_batch(user_id, last_update, chunk, final, batch_num, skip_ratings):
     '''
     Loads a batch of tracks into models.Track entities. This is used to do daily
     maintenence on the library, only updating what has changed, skipping
@@ -411,6 +421,7 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
         int(track['durationMillis'])
         for track in chunk
         if not track['deleted']
+        and not int(track['rating']) in skip_ratings
     )
     length_product = str(reduce(operator.mul, all_lens, 1))
 
@@ -420,6 +431,7 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
         update_num_tracks,
         user_id,
         num_tracks,
+        len(all_lens),
         length_product,
         myhash,
         last_tracks,
@@ -447,7 +459,7 @@ def load_batch(user_id, last_update, chunk, final, batch_num):
         ))
 
 
-def initialize_batch(user_id, last_update, chunk, final, batch_num):
+def initialize_batch(user_id, last_update, chunk, final, batch_num, skip_ratings):
     '''
     Loads a batch of tracks into models.Track entities. This is used to
     initialize the library (first run).
@@ -493,6 +505,7 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
         int(track['durationMillis'])
         for track in chunk
         if not track['deleted']
+        and not int(track['rating']) in skip_ratings
     )
     length_product = str(reduce(operator.mul, all_lens, 1))
     last_tracks = final is not None
@@ -500,6 +513,7 @@ def initialize_batch(user_id, last_update, chunk, final, batch_num):
         update_num_tracks,
         user_id,
         num_tracks,
+        len(all_lens),
         length_product,
         myhash,
         last_tracks,
@@ -549,6 +563,7 @@ def get_batch(
     last_update,
     initial,
     encrypted_passwd,
+    skip_ratings,
     _token=None,
     _num=0,
     _num_tracks=0
@@ -601,6 +616,7 @@ def get_batch(
                 results,
                 final_track_count,
                 batch_num,
+                skip_ratings,
                 _queue='lib-upd'
             )
             if _token is None:
@@ -620,6 +636,7 @@ def get_batch(
             last_update,
             initial,
             crypt.encrypt(crypt.decrypt(encrypted_passwd, uid), uid),
+            skip_ratings,
             _token=_token,
             _num=batch_num,
             _num_tracks=_num_tracks,

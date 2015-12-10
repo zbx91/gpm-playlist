@@ -26,11 +26,14 @@ def autoload_libraries(request):  # Cron Job.
 
         user.updating = True
         user.num_tracks = 0
+        user.usable_num_tracks = 0
         user.num_deletes = 0
         user.num_merges = 0
         del user.updated_batches
         del user.update_lengths
         del user.avg_length
+        if not user.skip_ratings:
+            user.skip_ratings = [1]
 
         with lib.suppress(ValueError):
             if user.update_start and user.update_stop and user.update_stop > user.update_start:
@@ -59,7 +62,8 @@ def autoload_libraries(request):  # Cron Job.
             user_id,
             user.last_update_start,
             initial,
-            crypt.encrypt(crypt.decrypt(user.password, uid), uid)
+            crypt.encrypt(crypt.decrypt(user.password, uid), uid),
+            user.skip_ratings
         )
         futures.append(user.put_async())
 

@@ -105,7 +105,7 @@ indexes:
   - name: modified
   - name: rand_num
 
-# Simple property indexes
+# By title
 
 - kind: Track
   ancestor: yes
@@ -115,125 +115,120 @@ indexes:
 - kind: Track
   ancestor: yes
   properties:
-  - name: disc_number
+  - name: title
+    direction: desc
 
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: total_disc_count
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: track_number
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: total_track_count
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: artist
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: artist_art
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: album_artist
+# By album (with disc & track #s)
 
 - kind: Track
   ancestor: yes
   properties:
   - name: album
+  - name: disc_number
+  - name: track_number
 
 - kind: Track
   ancestor: yes
   properties:
+  - name: album
+    direction: desc
+  - name: disc_number
+  - name: track_number
+
+# By artist (with album and disc & track #s)
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: artist
+  - name: album
+  - name: disc_number
+  - name: track_number
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: artist
+  - name: album
+    direction: desc
+  - name: disc_number
+  - name: track_number
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: artist
+    direction: desc
+  - name: album
+  - name: disc_number
+  - name: track_number
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: artist
+    direction: desc
+  - name: album
+    direction: desc
+  - name: disc_number
+  - name: track_number
+
+# By album artist (with album and disc & track #s)
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album_artist
+  - name: album
+  - name: disc_number
+  - name: track_number
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album_artist
+  - name: album
+    direction: desc
+  - name: disc_number
+  - name: track_number
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album_artist
+    direction: desc
+  - name: album
+  - name: disc_number
+  - name: track_number
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album_artist
+    direction: desc
+  - name: album
+    direction: desc
+  - name: disc_number
+  - name: track_number
+
+# Album query
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
   - name: album_art
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: year
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: composer
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: genre
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: created
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: modified
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: play_count
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: duration_millis
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: rating
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: comment
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: partition
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: holidays
-
-# Complex indexes
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: album
-  - name: disc_number
-  - name: track_number
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: artist
-  - name: album
-  - name: disc_number
-  - name: track_number
-
-
-- kind: Track
-  ancestor: yes
-  properties:
   - name: album_artist
+  - name: total_disc_count
+  - name: year
+  
+
+- kind: Track
+  ancestor: yes
+  properties:
   - name: album
-  - name: disc_number
-  - name: track_number
+    direction: desc
+  - name: album_art
+  - name: album_artist
+  - name: total_disc_count
+  - name: year

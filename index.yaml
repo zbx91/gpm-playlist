@@ -221,14 +221,34 @@ indexes:
   - name: album_artist
   - name: total_disc_count
   - name: year
-  
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
+  - name: disc_number
+  - name: track_number
+  - name: partition
+  - name: holidays
 
 - kind: Track
   ancestor: yes
   properties:
   - name: album
     direction: desc
+  - name: album_artist
   - name: album_art
   - name: album_artist
   - name: total_disc_count
   - name: year
+  
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
+    direction: desc
+  - name: album_artist
+  - name: disc_number
+  - name: track_number
+  - name: partition
+  - name: holidays

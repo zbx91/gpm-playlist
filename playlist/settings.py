@@ -135,4 +135,6 @@ CSP_IMG_SRC = ("'self'", "data:", "s.ytimg.com", "*.googleusercontent.com", "*.g
 CSP_CONNECT_SRC = ("'self'", "plus.google.com", "www.google-analytics.com", "*.darkhelm.org")
 
 
+ALLOWED_HOSTS = ('gpm-playlist.darkhelm.org', 'gpm-playlist.appspot.com')
+
 from djangae.contrib.gauth.settings import *

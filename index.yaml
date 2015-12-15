@@ -124,6 +124,7 @@ indexes:
   ancestor: yes
   properties:
   - name: album
+  - name: album_artist
   - name: disc_number
   - name: track_number
 
@@ -132,6 +133,7 @@ indexes:
   properties:
   - name: album
     direction: desc
+  - name: album_artist
   - name: disc_number
   - name: track_number
 
@@ -187,27 +189,8 @@ indexes:
   ancestor: yes
   properties:
   - name: album_artist
-  - name: album
-    direction: desc
-  - name: disc_number
-  - name: track_number
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: album_artist
     direction: desc
   - name: album
-  - name: disc_number
-  - name: track_number
-
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: album_artist
-    direction: desc
-  - name: album
-    direction: desc
   - name: disc_number
   - name: track_number
 
@@ -226,29 +209,24 @@ indexes:
   ancestor: yes
   properties:
   - name: album
-  - name: disc_number
-  - name: track_number
-  - name: partition
-  - name: holidays
+    direction: desc
+  - name: album_art
+  - name: album_artist
+  - name: total_disc_count
+  - name: year
 
 - kind: Track
   ancestor: yes
   properties:
   - name: album
-    direction: desc
-  - name: album_artist
-  - name: album_art
-  - name: album_artist
-  - name: total_disc_count
-  - name: year
-  
-- kind: Track
-  ancestor: yes
-  properties:
-  - name: album
-    direction: desc
   - name: album_artist
   - name: disc_number
   - name: track_number
   - name: partition
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
+  - name: album_artist
   - name: holidays

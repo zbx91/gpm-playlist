@@ -333,6 +333,7 @@ def get_albums(request):
         for album in album_batch
     )
 
+    @ndb.tasklet
     def get_album_data(album):
         query = models.Track.query(
             ndb.AND(

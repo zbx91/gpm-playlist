@@ -302,38 +302,126 @@ def get_tracks(request):
         }),
         content_type='text/json'
     )
-    
-    
+
+
 def get_albums(request):
     user = users.get_current_user()
     user_id = ndb.Key(models.User, user.user_id())
-    
+
+    cursor = ndb.Cursor(urlsafe=request.GET.get('next_page', None))
+    batch_size = int(request.GET.get('batch_size', 100))
+
     query = models.Track.query(
         projection=[
             'album',
             'album_artist',
-            'album_art',
-            'total_disc_count',
-            'year',
         ],
         distinct=True,
         ancestor=user_id
     )
 
-    results = query.fetch()
+    album_batch, next_cursor, more = query.fetch_page(
+        batch_size,
+        start_cursor=cursor
+    )
+
+    albums = tuple(
+        {
+            'album': album.album,
+            'album_artist': album.album_artist,
+        }
+        for album in album_batch
+    )
+
+    def get_album_data(album):
+        query = models.Track.query(
+            ndb.AND(
+                models.Track.album == album['album'],
+                models.Track.album_artist == album['album_artist'],
+            ),
+            projection=[
+                'year',
+                'album_art',
+                'total_disc_count',
+            ],
+            distinct=True,
+            ancestor=user_id
+        )
+        results = yield query.fetch_async()
+
+        years, images, disc_counts = zip(*tuple(
+            (entry.year, entry.album_art, entry.total_disc_count)
+            for entry in results
+        ))
+
+        album['year'] = max(years)
+        album['album_art'] = min(images)
+        album['total_disc_count'] = max(disc_counts)
+
+    @ndb.tasklet
+    def get_album_tracks(album):
+        query = models.Track.query(
+            ndb.AND(
+                models.Track.album == album['album'],
+                models.Track.album_artist == album['album_artist'],
+            ),
+            projection=[
+                'disc_number',
+                'track_number',
+                'partition',
+            ],
+            distinct=True,
+            ancestor=user_id
+        )
+        results = yield query.fetch_async()
+
+        partitions = {}
+        num_tracks = 0
+
+        for entry in results:
+            num_tracks += 1
+
+            try:
+                partitions[entry.partition] += 1
+
+            except KeyError:
+                partitions[entry.partition] = 1
+
+        album['num_tracks'] = num_tracks
+        album['partitions'] = partitions
+
+    @ndb.tasklet
+    def get_album_holidays(album):
+        query = models.Track.query(
+            ndb.AND(
+                models.Track.album == album['album'],
+                models.Track.album_artist == album['album_artist'],
+            ),
+            projection=['holidays'],
+            distinct=True,
+            ancestor=user_id
+        )
+        results = yield query.fetch_async()
+
+        album['holidays'] = list(set(entry.holidays for entry in results))
+
+    @ndb.tasklet
+    def get_album_pieces(album):
+        yield (
+            get_album_data(album),
+            get_album_tracks(album),
+            get_album_holidays(album)
+        )
+
+    futures = tuple(map(get_album_pieces, albums))
+
+    ndb.Future.wait_all(futures)
 
     return HttpResponse(
         json.dumps({
-            'albums': tuple(
-                {
-                    'album': album.album,
-                    'album_artist': album.album_artist,
-                    'album_art': album.album_art,
-                    'total_disc_count': album.total_disc_count,
-                    'year': album.year,
-                }
-                for album in results
-            ),
+            'next_page': next_cursor.urlsafe() if next_cursor is not None and more else None,
+            'batch_size': batch_size,
+            'albums': albums,
         }),
         content_type='text/json'
     )

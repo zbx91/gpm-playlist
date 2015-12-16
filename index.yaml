@@ -200,20 +200,37 @@ indexes:
   ancestor: yes
   properties:
   - name: album
-  - name: album_art
   - name: album_artist
-  - name: total_disc_count
-  - name: year
 
 - kind: Track
   ancestor: yes
   properties:
   - name: album
     direction: desc
-  - name: album_art
   - name: album_artist
-  - name: total_disc_count
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
+  - name: album_artist
+    direction: desc
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
+    direction: desc
+  - name: album_artist
+
+- kind: Track
+  ancestor: yes
+  properties:
+  - name: album
+  - name: album_artist
   - name: year
+  - name: album_art
+  - name: total_disc_count
 
 - kind: Track
   ancestor: yes

@@ -1,4 +1,0 @@
-cron:
-  - description: daily updating of track libraries  
-    url: /cron/autoload_libraries
-    schedule: every day 00:00

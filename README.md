@@ -1,7 +1,7 @@
 
 # The Google Play Music Automated Daily Playlist Manager
 
-This is intended to be a 100% cloud-based solution for generating automated daily playlists for Google Play Music. Currently, it is designed for my own purposes, but I might eventually open up the gpm-playlist GAE app for others to be able to use it as well.
+After a failed attempt at making this work on Google App Engine (I would rather not have to pay Google in order to make a playlistgenerate from their systems), I am re-imagining this project as a stand-alone application that connects to Google Play Music to generate the playlist. As before, this is primarily for my own purposes, however others are free to take what I develop here and shape it however they want.
 
 The original basis for this app was my use of the Smart Playlist functionality in Apple's iTunes, which I needed in order to load music from my own personal music library on my G1 iPhone. I wanted a way to work my way through my music library, leaving no songs out of the cycle, but in a somewhat intelligent manner, while also providing random selections of music. To this end, I developed lists that were based on specific:
 
@@ -20,7 +20,9 @@ All of the above rules result in a good mix of music for my playlist each day. I
 
 Firefly Server had its issues, and I migrated to Squeezebox Server. I rewrote my playlists into SQL queries, and was able to continue the processing of my playlist from my own home-based server. Squeezebox Server started to be somewhat limiting for me (and I didn't like writing everything as SQL queries), so I rebuilt my server using Music Player Daemon (MPD). MPD have me freedom to write my playlist in a language I preferred -- Python. I ended up building the entire system simply, no longer limited by a particular framework (since MPD is fairly simple in how it does things), and then my personal server failed. I had not been able to continue my music streaming from home after that.
 
-At the same time, Google started their music service... with the ability to upload a TON of music to be able to be streamed back over the internet, even to my Android phone... but it is limited in that there is no equivalent to the smart playlist processing I had desired. But, Google also has a cloud-based programming platform, their App Engine, which runs Python. So... this project is my attempt to make Google App Engine drive a system that handles the processing of a daily playlist that will be available in Google Play Music. Thanks to the gmusicapi library by @simon-weber, that gives Python an unofficial API to access the Google Play Music system, I believe this is truly possible.
+At the same time, Google started their music service... with the ability to upload a TON of music to be able to be streamed back over the internet, even to my Android phone... but it is limited in that there is no equivalent to the smart playlist processing I had desired. Thanks to the gmusicapi library by @simon-weber, that gives Python an unofficial API to access the Google Play Music system, I believe this is truly possible using Python (my preferred language).
+
+As I am building this as a standalone application, no longer inhibited by Google App Engine's restrictions, I am going to use the latest technology I have at my disposal: Python 3.6 (with full asyncio support), pandas (which will make processing the data a snap), and wrap the application around those and other Python libraries.
 
 The stated goals for this project:
 

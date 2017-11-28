@@ -1,0 +1,48 @@
+version: 1
+
+formatters:
+    playlist:
+        # format: '%(asctime)s [%(levelname)s] |%(processName)s (%(process)d)|%(threadName)s (%(thread)d)| %(name)s.%(func_name)s {%(file_name)s #%(line_no)d}: %(message)s'
+        format: '{asctime} [{levelname}] <{processName}|{threadName}> {name}: {message}'
+        style: '{'
+
+handlers:
+    playlist_queue:
+        class: playlist.core.logger.PlaylistQueueHandler
+        queue: ext://playlist.core.logger.LOG_QUEUE
+        level: LOGGED_FUNC
+
+root:
+    propagate: False
+    handlers: [playlist_queue]
+    level: LOGGED_FUNC
+
+loggers:
+    asyncssh:
+        propagate: False
+        handlers: [playlist_queue]
+        level: LOGGED_FUNC
+    aiohttp:
+        propagate: False
+        handlers: [playlist_queue]
+        level: LOGGED_FUNC
+    sqlalchemy:
+        propagate: False
+        handlers: [playlist_queue]
+        level: WARNING
+    sqlalchemy.engine:
+        propagate: False
+        handlers: [playlist_queue]
+        level: LOGGED_FUNC
+#    sqlalchemy.pool:
+#        propagate: False
+#        handlers: [playlist_queue]
+#        level: LOGGED_FUNC
+#    sqlalchemy.orm:
+#        propagate: False
+#        handlers: [playlist_queue]
+#        level: LOGGED_FUNC
+#    sqlalchemy.dialects:
+#        propagate: False
+#        handlers: [playlist_queue]
+#        level: LOGGED_FUNC

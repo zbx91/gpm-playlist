@@ -41,7 +41,7 @@ colummns:
       type: Integer
 
     - name: 'artistId'
-      type: Integer
+      type: String
 
     - name: 'albumArtist'
       type: String

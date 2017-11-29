@@ -1,0 +1,5 @@
+db:
+    driver: 'sqlite:///'
+    file: 'tracks.db'
+    params:
+        check_same_thread: false

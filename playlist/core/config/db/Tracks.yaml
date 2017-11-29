@@ -1,0 +1,104 @@
+---
+
+tablename: tracks
+colummns:
+    - name: 'id'
+      type: String
+      primary_key: true
+      nullale: false
+
+    - name: 'title'
+      type: String
+
+    - name: 'albumArtId'
+      type: Integer
+
+    - name: 'album'
+      type: String
+
+    - name: 'albumId'
+      type: Integer
+
+    - name: 'trackNumber'
+      type: Integer
+
+    - name: 'totalTrackCount'
+      type: Integer
+
+    - name: 'discNumber'
+      type: Integer
+
+    - name: 'totalDiscCount'
+      type: Integer
+
+    - name: 'year'
+      type: Integer
+
+    - name: 'artist'
+      type: String
+
+    - name: 'artistArtId'
+      type: Integer
+
+    - name: 'artistId'
+      type: Integer
+
+    - name: 'albumArtist'
+      type: String
+
+    - name: 'composer'
+      type: String
+
+    - name: 'genre'
+      type: String
+
+    - name: 'trackType'
+      type: String
+
+    - name: 'explicitType'
+      type: String
+
+    - name: 'kind'
+      type: String
+
+    - name: 'beatsPerMinute'
+      type: Integer
+
+    - name: 'durationMillis'
+      type: String
+
+    - name: 'estimatedSize'
+      type: String
+
+    - name: 'playCount'
+      type: Integer
+
+    - name: 'creationTimestamp'
+      type: String
+
+    - name: 'lastModifiedTimestamp'
+      type: String
+
+    - name: 'lastRatingChangeTimestamp'
+      type: String
+
+    - name: 'recentTimestamp'
+      type: String
+
+    - name: 'comment'
+      type: String
+
+    - name: 'primaryVideoId'
+      type: Integer
+
+    - name: 'storeId'
+      type: String
+
+    - name: 'nid'
+      type: String
+
+    - name: 'clientId'
+      type: String
+
+    - name: 'deleted'
+      type: Boolean

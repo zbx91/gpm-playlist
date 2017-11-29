@@ -1,0 +1,13 @@
+---
+
+tablename: album_art
+columns:
+    - name: 'id'
+      type: Integer
+      primary_key: true
+      nullable: false
+
+    - name: 'kind'
+      type: String
+    - name: 'url'
+      type: String

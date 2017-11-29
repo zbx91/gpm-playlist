@@ -17,7 +17,7 @@ keys (ie: `config['settings']) or as object attributes (ie: `config.settings`).
 """
 import sys
 
-from playlist.core import _yaml_config
-config = _yaml_config.RootConfig()
+from playlist.core.yaml import _config
+config = _config.RootConfig()
 type(config).__doc__ = __doc__
 sys.modules[__name__] = config

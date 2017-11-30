@@ -41,7 +41,7 @@ import weakref
 import pkg_resources
 
 from playlist.core import const, _config, lib
-from playlist.yaml import async_yaml, sync_yaml
+from playlist.yaml import async_lib, sync_lib
 
 
 class FileLoadedType(metaclass=_config.SingletonMeta):
@@ -161,7 +161,7 @@ class YamlAsyncContextManager:
                 return weakref.proxy(self._data)  # type: ignore
 
             except AttributeError:
-                self._data = await async_yaml.yaml_read(
+                self._data = await async_lib.yaml_read(
                     self._filepath,
                     self._type
                 )
@@ -195,7 +195,7 @@ class YamlAsyncContextManager:
                 return weakref.proxy(self._data)  # type: ignore
 
             except AttributeError:
-                self._data = sync_yaml.yaml_read(self._filepath, self._type)
+                self._data = sync_lib.yaml_read(self._filepath, self._type)
                 return weakref.proxy(self._data)
 
     def __exit__(
@@ -533,28 +533,28 @@ class RootConfig(PathConfig, _config.MainConfig):
         extra_attrs = (
             {
                 'name': 'yaml_read_async',
-                'func': lambda: async_yaml.yaml_read,
-                'doc': async_yaml.yaml_read.__doc__,
+                'func': lambda: async_lib.yaml_read,
+                'doc': async_lib.yaml_read.__doc__,
                 'preload': True,
             },
 
             {
                 'name': 'yaml_write_async',
-                'func': lambda: async_yaml.yaml_write,
-                'doc': async_yaml.yaml_write.__doc__,
+                'func': lambda: async_lib.yaml_write,
+                'doc': async_lib.yaml_write.__doc__,
                 'preload': True,
             },
             {
                 'name': 'yaml_read_sync',
-                'func': lambda: sync_yaml.yaml_read,
-                'doc': sync_yaml.yaml_read.__doc__,
+                'func': lambda: sync_lib.yaml_read,
+                'doc': sync_lib.yaml_read.__doc__,
                 'preload': True,
             },
 
             {
                 'name': 'yaml_write_sync',
-                'func': lambda: sync_yaml.yaml_write,
-                'doc': sync_yaml.yaml_write.__doc__,
+                'func': lambda: sync_lib.yaml_write,
+                'doc': sync_lib.yaml_write.__doc__,
                 'preload': True,
             },
         )

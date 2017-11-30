@@ -1,9 +1,9 @@
 """
-Encapsulates the implementation of the :py:mod:`playlist.core.sql.conn` module.
+Encapsulates the implementation of the :py:mod:`playlist.sql.conn` module.
 
 This provides a clean separation of implementation and interface.
 Generally speaking, importing this module should not be necessary, but rather
-the :py:mod:`playlist.core.sql.conn` module should be imported instead.
+the :py:mod:`playlist.sql.conn` module should be imported instead.
 
 **********
 Module API

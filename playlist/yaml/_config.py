@@ -41,7 +41,7 @@ import weakref
 import pkg_resources
 
 from playlist.core import const, _config, lib
-from playlist.core.yaml import async_yaml, sync_yaml
+from playlist.yaml import async_yaml, sync_yaml
 
 
 class FileLoadedType(metaclass=_config.SingletonMeta):

@@ -17,6 +17,6 @@ columns:
     - name: 'width'
       type: Integer
 
-    - name: 'video_id'
+    - name: 'primary_video_id'
       type: String
       nullable: false

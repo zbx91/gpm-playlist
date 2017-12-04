@@ -2,7 +2,7 @@ import pathlib
 
 from gmusicapi import Mobileclient
 
-pw_file = pathlib.Path('../../apppw')
+pw_file = pathlib.Path('../apppw')
 
 api = Mobileclient()
 with pw_file.open() as f:
@@ -17,71 +17,91 @@ print(f'Logged in? {logged_in}')
 
 songs = api.get_all_songs()
 
-dict_info = {}
+primary_video = [
+    {
+        subkey: subvalue
+        for subkey, subvalue in value.items()
+        if subkey != 'thumbnails'
+    }
+    for song in songs
+    for key, value in song.items()
+    if key == 'primaryVideo' and value
+]
 
-album_art_ref = {}
+video_thumbnails = [
+    dict(
+        elem.items(),
+        primary_video_id=value['id'],
+    )
+    for song in songs
+    for key, value in song.items()
+    if key == 'primaryVideo' and value
+    for elem in value.get('thumbnails', [])
+]
 
-artist_id = {}
+tracks = []
 
-artist_art_ref = {}
+album_art = []
 
-primary_video = {}
+artist_id = []
 
-video_thumbnails = {}
+artist_art = []
 
-for song in songs:
-    for key, value in song.items():
-        if key == 'albumArtRef' and value:
-            for elem in value:
-                for subkey, subvalue in elem.items():
-                    try:
-                        album_art_ref[subkey] |= {type(subvalue)}
-                    except KeyError:
-                        album_art_ref[subkey] = {type(subvalue)}
 
-        elif key == 'artistArtRef' and value:
-            for elem in value:
-                for subkey, subvalue in elem.items():
-                    try:
-                        artist_art_ref[subkey] |= {type(subvalue)}
-                    except KeyError:
-                        artist_art_ref[subkey] = {type(subvalue)}
+prime_num = 0
 
-        elif key == 'artistId' and value:
-            artist_id = {type(elem) for elem in value}
+# for song in songs:
+    # track = {}
+    # for key, value in song.items():
+        # if key == 'albumArtRef' and value:
+        #     for elem in value:
+        #         album_art.append({
+        #             subkey: subvalue
+        #             for subkey, subvalue in elem.items()
+        #         })
+        #     track[key] = value
 
-        elif key == 'primaryVideo' and value:
-            for subkey, subvalue in value.items():
-                if subkey == 'thumbnails':
-                    for elem in subvalue:
-                        for thumbkey, thumbvalue in elem.items():
-                            try:
-                                video_thumbnails[thumbkey] |= {
-                                    type(thumbvalue)
-                                }
-                            except KeyError:
-                                video_thumbnails[thumbkey] = {
-                                    type(thumbvalue)
-                                }
-                try:
-                    primary_video[subkey] |= {type(subvalue)}
-                except KeyError:
-                    primary_video[subkey] = {type(subvalue)}
+        # elif key == 'artistArtRef' and value:
+        #     for elem in value:
+        #         artist_art.append({
+        #             subkey: subvalue
+        #             for subkey, subvalue in elem.items()
+        #         })
+        #     track[key] = value
 
-        try:
-            dict_info[key] |= {type(value)}
-        except KeyError:
-            dict_info[key] = {type(value)}
+        # elif key == 'artistId' and value:
+        #     try:
+        #         track['artistId'] = value[0]
+        #     except IndexError:
+        #         track['artistId'] = None
+
+        # elif key == 'primaryVideo' and value:
+        #     primary_video.append({
+        #         subkey: subvalue
+        #         for subkey, subvalue in value.items()
+        #         # if subkey != 'thumbnails'
+        #     })
+        #     for elem in value['thumbnails']:
+        #         thumbnail = {
+        #             thumbkey: thumbvalue
+        #             for thumbkey, thumbvalue in elem.items()
+        #         }
+        #         thumbnail['primary_video_id'] = prime_num
+        #         video_thumbnails.append(thumbnail)
+        #     track[key] = value
+        # else:
+        #     track[key] = value
+    # tracks.append(track)
 
 from pprint import pprint
-pprint(dict_info)
-print('-'*79)
-pprint(album_art_ref)
-print('-'*79)
-pprint(artist_id)
-print('-'*79)
-pprint(artist_art_ref)
-print('-'*79)
+# pprint(tracks)
+# print('-'*79)
+# pprint(album_art)
+# print('-'*79)
+# pprint(artist_id)
+# print('-'*79)
+# pprint(artist_art)
+# print('-'*79)
 pprint(primary_video)
 print('-'*79)
 pprint(video_thumbnails)

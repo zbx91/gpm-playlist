@@ -27,6 +27,8 @@ artist_art_ref = {}
 
 primary_video = {}
 
+video_thumbnails = {}
+
 for song in songs:
     for key, value in song.items():
         if key == 'albumArtRef' and value:
@@ -50,6 +52,17 @@ for song in songs:
 
         elif key == 'primaryVideo' and value:
             for subkey, subvalue in value.items():
+                if subkey == 'thumbnails':
+                    for elem in subvalue:
+                        for thumbkey, thumbvalue in elem.items():
+                            try:
+                                video_thumbnails[thumbkey] |= {
+                                    type(thumbvalue)
+                                }
+                            except KeyError:
+                                video_thumbnails[thumbkey] = {
+                                    type(thumbvalue)
+                                }
                 try:
                     primary_video[subkey] |= {type(subvalue)}
                 except KeyError:
@@ -70,3 +83,5 @@ print('-'*79)
 pprint(artist_art_ref)
 print('-'*79)
 pprint(primary_video)
+print('-'*79)
+pprint(video_thumbnails)

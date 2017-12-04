@@ -344,9 +344,11 @@ class DBConnection(metaclass=DBConnectionMeta):
 
     def __init__(
         self,
+        name: str
     ) -> None:
         """Initiaize the DBConnection."""
         self.__lock = threading.RLock()
+        self.name = name
 
     @property
     def engine(self) -> DBEngine:
@@ -438,7 +440,7 @@ class DBConnection(metaclass=DBConnectionMeta):
 
     def __repr__(self) -> str:
         """String representation of the DBConnection object."""
-        return f'<DBConnection(), engine={{{self.engine}}}>'
+        return f'<DBConnection(name={self.name!r}), engine={{{self.engine}}}>'
 
 
 class MainConnectionConfig(config.Base):
@@ -450,7 +452,7 @@ class MainConnectionConfig(config.Base):
             attrs=(
                 {
                     'name': 'trackdb',
-                    'func': DBConnection,
+                    'func': functools.partial(DBConnection, name='trackdb'),
                     'doc': 'The Track DB'
                 },
                 {

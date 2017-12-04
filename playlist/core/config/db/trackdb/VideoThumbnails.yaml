@@ -1,0 +1,17 @@
+---
+
+tablename: video_thumbnails
+columns:
+    - name: 'id'
+      type: Integer
+      primary_key: true
+      nullable: false
+
+    - name: 'url'
+      type: String
+
+    - name: 'height'
+      type: Integer
+
+    - name: 'width'
+      type: Integer

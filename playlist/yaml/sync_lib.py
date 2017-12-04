@@ -280,8 +280,8 @@ def _yaml_read_editable(
     else:
         raise ValueError(f'Incorrect Config Path Type: {type_}')
 
+    data_filepath.mkdir(parents=True, exist_ok=True)
     data_filepath /= filename
-
     data_filepath = data_filepath.with_suffix(
         const.FileExt.COMPRESSED_YAML.value
     )
@@ -436,7 +436,9 @@ def yaml_write(
     subpath = filepath.parent
     filename = filepath.name
 
-    data_filepath = const.BasePath.HOME.get_abs(subpath=subpath) / filename
+    data_filepath = const.BasePath.SETTINGS.value / subpath
+    data_filepath.mkdir(parents=True, exist_ok=True)
+    data_filepath /= filename
 
     yaml_dump_params = {
         'default_flow_style': False,

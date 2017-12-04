@@ -1,7 +1,7 @@
 ---
 
 tablename: tracks
-colummns:
+columns:
     - name: 'id'
       type: String
       primary_key: true
@@ -89,7 +89,7 @@ colummns:
       type: String
 
     - name: 'primaryVideoId'
-      type: Integer
+      type: String
 
     - name: 'storeId'
       type: String
@@ -102,3 +102,22 @@ colummns:
 
     - name: 'deleted'
       type: Boolean
+
+relationships:
+    - name: album_art
+      ref: AlbumArt
+      backref:
+          name: 'tracks'
+      primaryjoin: 'Tracks.albumArtId == AlbumArt.id'
+
+    - name: artist_art
+      ref: ArtistArt
+      backref:
+          name: 'tracks'
+      primaryjoin: 'Tracks.artistArtId == ArtistArt.id'
+
+    - name: primary_video
+      ref: PrimaryVideo
+      backref:
+          name: 'track'
+      primaryjoin: 'Tracks.primaryVideoId = PrimaryVideo.id'

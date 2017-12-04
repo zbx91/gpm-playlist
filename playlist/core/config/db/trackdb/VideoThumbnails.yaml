@@ -6,6 +6,7 @@ columns:
       type: Integer
       primary_key: true
       nullable: false
+      autoincrement: 'auto'
 
     - name: 'url'
       type: String
@@ -15,3 +16,7 @@ columns:
 
     - name: 'width'
       type: Integer
+
+    - name: 'video_id'
+      type: String
+      nullable: false

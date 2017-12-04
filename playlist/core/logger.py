@@ -323,8 +323,10 @@ class LogListener:
         try:
             return self.__handler
         except AttributeError:
-            filepath = (const.BasePath.LOG.value / 'main').with_suffix('.log')
+            path = const.BasePath.LOG.value
+            path.mkdir(parents=True, exist_ok=True)
 
+            filepath = (path / 'main').with_suffix('.log')
             handler = PlaylistRotatingFileHandler(filepath)
             handler.setLevel(const.LogLevel.LOGGED_FUNC.value)
             handler.setFormatter(FORMATTER)

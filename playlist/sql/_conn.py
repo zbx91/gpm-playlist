@@ -46,7 +46,9 @@ def get_connect_string() -> str:
     """
 
     with config.settings as settings:
-        db_path = const.BasePath.DATA.value / settings.db.file
+        path = const.BasePath.DATA.value
+        path.mkdir(parents=True, exist_ok=True)
+        db_path = path / settings.db.file
 
         connect_string = f'{settings.db.driver}{db_path.as_posix()}'
 
@@ -281,7 +283,9 @@ class DBEngine:
     def __verify_sqlite_exists(self):
 
             with config.settings as settings:
-                dbcache = const.BasePath.DATA.value / settings.db.file
+                path = const.BasePath.DATA.value
+                path.mkdir(parents=True, exist_ok=True)
+                dbcache = path / settings.db.file
 
             if not dbcache.exists():
                 with contextlib.suppress(AttributeError):
@@ -329,13 +333,13 @@ class DBEngine:
 class DBConnectionMeta(type):
     _lock = threading.RLock()
 
-    def __call__(cls) -> 'DBConnection':  # type: ignore
+    def __call__(cls, name: str) -> 'DBConnection':  # type: ignore
         cls.__instance: 'DBConnection'
         with DBConnectionMeta._lock:
             try:
                 return cls.__instance
             except AttributeError:
-                cls.__instance = super().__call__()
+                cls.__instance = super().__call__(name)
                 return cls.__instance
 
 

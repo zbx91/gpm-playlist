@@ -15,27 +15,14 @@ from playlist.core import config, const, lib, logger
 class DBTablesMeta(type):
     _lock = threading.RLock()
 
-    def __get_key(cls, db: const.DB) -> typing.Tuple[str, const.DB]:
-        if db.region:
-            host = lib.get_region_host()
-        else:
-            host = lib.get_host()
-
-        return host, db
-
-    def __call__(cls, db: const.DB) -> 'DBTables':
-        key = cls.__get_key(db)
-        cls.__instances: typing.Dict[typing.Tuple[str, const.DB], 'DBTables']
+    def __call__(cls, name: str) -> 'DBTables':
+        cls.__instance: 'DBTables'
         with DBTablesMeta._lock:
             try:
-                instances = cls.__instances
+                return cls.__instance
             except AttributeError:
-                instances = cls.__instances = {}
-            try:
-                return instances[key]
-            except KeyError:
-                instances[key] = super().__call__(db)
-                return instances[key]
+                cls.__instance = super().__call__(name)
+                return cls.__instance
 
 
 class DBTables(metaclass=DBTablesMeta):
@@ -98,6 +85,13 @@ class DBTables(metaclass=DBTablesMeta):
             except KeyError:
                 col_doc = f'{col_doc}, nullable=False'
 
+            with contextlib.suppress(KeyError):
+                col_params['autoincrement'] = repr(coldef['autoincrement'])
+                col_doc = ', '.join((
+                    col_doc,
+                    f"autoincrement={coldef['autoincrement']!r}"
+                ))
+
             # Usually, this will be able to be used to define the default value
             # for the column. The "FetchedValue" takes the default straight
             # from the database itself.
@@ -143,7 +137,6 @@ class DBTables(metaclass=DBTablesMeta):
 
     def gen_relations(
         self,
-        db: const.DB,
         relationdefs: typing.Sequence[typing.Mapping[str, typing.Any]]
     ) -> typing.Generator[str, None, None]:
         for relationdef in relationdefs:
@@ -238,7 +231,6 @@ class DBTables(metaclass=DBTablesMeta):
 
         with contextlib.suppress(KeyError):
             for rel in self.gen_relations(
-                self.name,
                 tabledef['relationships']
             ):
                 yield f'    {rel}'
@@ -297,7 +289,7 @@ class DBTables(metaclass=DBTablesMeta):
         exec(table_src)
         table = locals()[table_name.replace('$', '_dlrsgn_')]
 
-        with self.conn.get_engine() as engine:
+        with self.conn.engine as engine:
             table.__table__.create(engine, checkfirst=True)
 
         return table
@@ -317,7 +309,7 @@ class DBTables(metaclass=DBTablesMeta):
                         else:
                             table = self._make_table(name)
 
-                        with self.conn.get_engine() as engine:
+                        with self.conn.engine as engine:
                             if not engine.has_table(name):
                                 table.__table__.create(
                                     engine,
@@ -326,7 +318,7 @@ class DBTables(metaclass=DBTablesMeta):
                         self.__tables[name] = table
                         break
 
-            with self.conn.get_engine() as engine:
+            with self.conn.engine as engine:
                 table.__table__.create(engine, checkfirst=True)
             return table
 
@@ -349,7 +341,7 @@ class DBTables(metaclass=DBTablesMeta):
                 for name, value in table_iter
             )
         return ' '.join((
-            f'<DBTables(db={self.name!r}),',
+            f'<DBTables(name={self.name!r}),',
             f'tables={{{tables}}}>'
         ))
 
@@ -362,7 +354,7 @@ class MainTablesConfig(config.Base):
                     'name': 'trackdb',
                     'func': functools.partial(DBTables, name='trackdb'),
                     'doc': 'The sqlite trackdb database tables.',
-                }
+                },
             )
         )
 

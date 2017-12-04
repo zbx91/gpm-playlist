@@ -4,6 +4,7 @@ columns:
       type: Integer
       primary_key: true
       nullable: false
+      autoincrement: 'auto'
 
     - name: 'aspectRatio'
       type: String

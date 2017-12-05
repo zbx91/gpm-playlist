@@ -1,6 +1,9 @@
 import pathlib
 
+import arrow
 from gmusicapi import Mobileclient
+
+from playlist.sql import lib as sqllib
 
 pw_file = pathlib.Path('../apppw')
 
@@ -17,91 +20,28 @@ print(f'Logged in? {logged_in}')
 
 songs = api.get_all_songs()
 
-primary_video = [
+tracks = [
     {
-        subkey: subvalue
-        for subkey, subvalue in value.items()
-        if subkey != 'thumbnails'
+        key: value['id']
+        if key == 'primaryVideo'
+        else (value[0] if value else None)
+        if key == 'artistId'
+        else int(value)
+        if key in {'durationMillis', 'estimatedSize', 'rating'}
+        else arrow.get(int(value) / 1_000_000)
+        if key in {
+            'creationTimestamp',
+            'lastModifiedTimestamp',
+            'recentTimestamp',
+            'recentTimestamp'
+        }
+        else value
+        for key, value in song.items()
+        if key not in {'albumArtRef', 'artistArtRef'}
     }
     for song in songs
-    for key, value in song.items()
-    if key == 'primaryVideo' and value
 ]
 
-video_thumbnails = [
-    dict(
-        elem.items(),
-        primary_video_id=value['id'],
-    )
-    for song in songs
-    for key, value in song.items()
-    if key == 'primaryVideo' and value
-    for elem in value.get('thumbnails', [])
-]
 
-tracks = []
-
-album_art = []
-
-artist_id = []
-
-artist_art = []
-
-
-prime_num = 0
-
-# for song in songs:
-    # track = {}
-    # for key, value in song.items():
-        # if key == 'albumArtRef' and value:
-        #     for elem in value:
-        #         album_art.append({
-        #             subkey: subvalue
-        #             for subkey, subvalue in elem.items()
-        #         })
-        #     track[key] = value
-
-        # elif key == 'artistArtRef' and value:
-        #     for elem in value:
-        #         artist_art.append({
-        #             subkey: subvalue
-        #             for subkey, subvalue in elem.items()
-        #         })
-        #     track[key] = value
-
-        # elif key == 'artistId' and value:
-        #     try:
-        #         track['artistId'] = value[0]
-        #     except IndexError:
-        #         track['artistId'] = None
-
-        # elif key == 'primaryVideo' and value:
-        #     primary_video.append({
-        #         subkey: subvalue
-        #         for subkey, subvalue in value.items()
-        #         # if subkey != 'thumbnails'
-        #     })
-        #     for elem in value['thumbnails']:
-        #         thumbnail = {
-        #             thumbkey: thumbvalue
-        #             for thumbkey, thumbvalue in elem.items()
-        #         }
-        #         thumbnail['primary_video_id'] = prime_num
-        #         video_thumbnails.append(thumbnail)
-        #     track[key] = value
-        # else:
-        #     track[key] = value
-    # tracks.append(track)
-
-from pprint import pprint
-# pprint(tracks)
-# print('-'*79)
-# pprint(album_art)
-# print('-'*79)
-# pprint(artist_id)
-# print('-'*79)
-# pprint(artist_art)
-# print('-'*79)
-pprint(primary_video)
-print('-'*79)
-pprint(video_thumbnails)
+sqllib.erase_new_tracks()
+sqllib.load_tracks(tracks)

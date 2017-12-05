@@ -1,6 +1,6 @@
 ---
 
-tablename: tracks
+tablename: new_tracks
 columns:
     - name: 'id'
       type: String
@@ -65,22 +65,22 @@ columns:
       type: Integer
 
     - name: 'durationMillis'
-      type: Integer
+      type: String
 
     - name: 'estimatedSize'
-      type: Integer
+      type: String
 
     - name: 'playCount'
       type: Integer
 
     - name: 'creationTimestamp'
-      type: DateTime
+      type: String
 
     - name: 'lastModifiedTimestamp'
-      type: DateTime
+      type: String
 
     - name: 'lastRatingChangeTimestamp'
-      type: DateTime
+      type: String
 
     - name: 'recentTimestamp'
       type: String
@@ -99,9 +99,6 @@ columns:
 
     - name: 'clientId'
       type: String
-
-    - name: 'rating'
-      type: Integer
 
     - name: 'deleted'
       type: Boolean

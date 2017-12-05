@@ -35,3 +35,17 @@ def load_tracks(
         for track in tracks
     )
     session.bulk_insert_mappings(tables.trackdb.NewTracks, inserts)
+
+
+@conn.trackdb.sessionize()
+def set_password(username: str, password: str, *, session):
+    creds = tables.trackdb.Credentials(username=username, password=password)
+    print(creds)
+    session.add(creds)
+
+
+@conn.trackdb.sessionize()
+def get_password(username: str, *, session) -> str:
+    query = conn.bakery(lambda s: s.query(tables.trackdb.Credentials))
+    query += lambda q: q.filter(username == sqlalchemy.bindparam('username'))
+    return query(session).params(username=username).one().password

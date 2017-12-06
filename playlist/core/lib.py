@@ -190,6 +190,31 @@ async def task_map(
         yield await typing.cast(typing.Awaitable, task)
 
 
+class AsyncIterator:
+    def __init__(self, iterator: typing.Iterable) -> None:
+        self._iterator = iter(iterator)
+
+    async def __aiter__(self) -> 'AsyncIterator':
+        return self
+
+    def _fix_next(self):
+        try:
+            return next(self._iterator)
+        except StopIteration:
+            raise RuntimeError
+
+    @inject_loop
+    async def __anext__(
+        self,
+        *,
+        loop: asyncio.AbstractEventLoop
+    ) -> typing.Any:
+        try:
+            return await loop.run_in_executor(None, self._fix_next)
+        except RuntimeError:
+            raise StopAsyncIteration
+
+
 class Timer(contextlib.ContextDecorator):
     """Class that is designed to time the execution of code."""
 
@@ -211,7 +236,7 @@ class Timer(contextlib.ContextDecorator):
         self.interval = self.end - self.start
 
     @inject_loop
-    def __enter__(self, *, loop: 'asyncio.AbstractEventLoop') -> 'Timer':
+    def __enter__(self, *, loop: asyncio.AbstractEventLoop) -> 'Timer':
         """Context manager start."""
         return loop.run_until_complete(self.__aenter__())
 

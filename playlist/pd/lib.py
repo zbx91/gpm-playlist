@@ -5,23 +5,18 @@ __all__ = (
 
 import asyncio
 import functools
-import logging
 import typing
 
 import numpy
 import pandas
 
-from playlist.core import lib as corelib, logger
+from playlist.core import lib as corelib
 
 
-@logger.logged
 def dict_to_df(
     data: typing.List[dict],
     index: typing.Union[str, typing.List[str]],
-    type_: str,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
+    type_: str
 ) -> typing.Tuple[
     str,
     typing.Dict[str, typing.Union[pandas.DataFrame, numpy.ndarray]]
@@ -35,20 +30,16 @@ def dict_to_df(
 
         df = pandas.DataFrame(index=index)
     df = df.sort_index()
-    log.debug(f'Converted {type_} to DataFrame of size {df.size}')
+    print(f'Converted {type_} to DataFrame of size {df.size}')
     return df
 
 
-@logger.logged
 def merge_entries(
     current: pandas.DataFrame,
-    previous: pandas.DataFrame,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
+    previous: pandas.DataFrame
 ) -> pandas.DataFrame:
     """Merge the current/previous dataframes by their index."""
-    log.debug(
+    print(
         f'Current entries: {current.size}; Previous entries: {previous.size}'
     )
     try:
@@ -77,7 +68,7 @@ def merge_entries(
                 merged,
                 pandas.DataFrame(columns=(cols + '_y').values)
             ])
-    log.debug(f'Merged entries: {merged.size}')
+    print(f'Merged entries: {merged.size}')
     return merged, ret_cols
 
 
@@ -107,19 +98,15 @@ def df_to_dict(data: pandas.DataFrame) -> typing.List[dict]:
     return ret_data
 
 
-@logger.logged
 def get_inserts(
     merged: pandas.DataFrame,
     curr_cols: numpy.ndarray,
     prev_cols: numpy.ndarray,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Tuple[str, typing.List[dict]]:
     """Get the inserts (rows with current but no previous data)."""
     inserts = merged[~merged[prev_cols].notnull().T.any()]
     inserts = inserts[curr_cols]
-    log.debug(f'Found {inserts.size} rows to insert.')
+    print(f'Found {inserts.size} rows to insert.')
     if not inserts.empty:
         inserts = inserts.rename(
             columns=dict(zip(
@@ -132,19 +119,15 @@ def get_inserts(
         return 'inserts', []
 
 
-@logger.logged
 def get_deletes(
     merged: pandas.DataFrame,
     curr_cols: numpy.ndarray,
     prev_cols: numpy.ndarray,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Tuple[str, typing.List[dict]]:
     """Get the deletes (rows with previous but no current data)."""
     deletes = merged[~merged[curr_cols].notnull().T.any()]
     deletes = deletes[prev_cols]
-    log.debug(f'Found {deletes.size} rows to delete.')
+    print(f'Found {deletes.size} rows to delete.')
     if not deletes.empty:
         deletes = deletes.rename(
             columns=dict(zip(
@@ -157,32 +140,24 @@ def get_deletes(
         return 'deletes', []
 
 
-@logger.logged
 def get_checks(
     merged: pandas.DataFrame,
     curr_cols: numpy.ndarray,
     prev_cols: numpy.ndarray,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> pandas.DataFrame:
     """Get the checks (rows with both current and previous data)."""
     checks = merged[
         (merged[curr_cols].notnull().T.any())
         & (merged[prev_cols].notnull().T.any())
     ]
-    log.debug(f'Found {checks.size} rows to check for updates.')
+    print(f'Found {checks.size} rows to check for updates.')
     return checks
 
 
-@logger.logged
 def split_checks(
     checks: pandas.DataFrame,
     cols: numpy.ndarray,
     type_: str,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Tuple[str, pandas.DataFrame]:
     """Split the columns for current/previous from the checks."""
     df = checks[cols]
@@ -195,17 +170,13 @@ def split_checks(
                 ).str.rstrip('_').values
             ))
         )
-    log.debug(f'Split {df.size} {type_} rows to check for updates.')
+    print(f'Split {df.size} {type_} rows to check for updates.')
     return type_, df
 
 
-@logger.logged
 def get_updates(
     splits: typing.Dict[str, pandas.DataFrame],
     ignored: typing.Optional[typing.List[str]]=None,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Tuple[str, typing.List[dict]]:
     """Get the updates (rows where data changed between current/previous)."""
     if splits['current'].empty:
@@ -240,17 +211,13 @@ def get_updates(
         )
     else:
         updates = splits['current'][updates]
-    log.debug(f'Found {updates.size} rows to update.')
+    print(f'Found {updates.size} rows to update.')
     return 'updates', df_to_dict(updates)
 
 
-@logger.logged
 def get_skips(
     splits: typing.Dict[str, pandas.DataFrame],
     ignored: typing.Optional[typing.List[str]]=None,
-    *,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Tuple[str, typing.List[dict]]:
     """Get the skips (rows where data did not change."""
     if splits['current'].empty:
@@ -275,12 +242,11 @@ def get_skips(
     skips = current_checks == previous_checks
     skips = skips.T.all()
     skips = splits['previous'][skips]
-    log.debug(f'Found {skips.size} rows to skip.')
+    print(f'Found {skips.size} rows to skip.')
     return 'skips', df_to_dict(skips)
 
 
 @corelib.inject_loop
-@logger.logged
 async def get_update_skips(
     merged: pandas.DataFrame,
     curr_cols: numpy.ndarray,
@@ -288,8 +254,6 @@ async def get_update_skips(
     ignored: typing.Optional[typing.List[str]]=None,
     *,
     loop: asyncio.AbstractEventLoop,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Tuple[
     str,
     typing.AsyncIterator[typing.Tuple[str, typing.List[dict]]]
@@ -302,7 +266,6 @@ async def get_update_skips(
             merged,
             curr_cols,
             prev_cols,
-            log_opts=log_opts
         )
     )
     iterable: typing.Tuple[asyncio.Future, ...] = (
@@ -313,7 +276,6 @@ async def get_update_skips(
                 checks,
                 curr_cols,
                 'current',
-                log_opts=log_opts
             )
         ),
         loop.run_in_executor(  # type: ignore
@@ -323,12 +285,11 @@ async def get_update_skips(
                 checks,
                 prev_cols,
                 'previous',
-                log_opts=log_opts
             )
         )
     )
     splits = {}
-    async for key, value in corelib.task_map(corelib.coro_wrapper, iterable):
+    async for key, value in corelib.task_map(corelib.AsyncIterator, iterable):
         splits[key] = value
 
     iterable = (
@@ -338,7 +299,6 @@ async def get_update_skips(
                 get_updates,
                 splits,
                 ignored=ignored,
-                log_opts=log_opts
             )
         ),
         loop.run_in_executor(  # type: ignore
@@ -347,14 +307,12 @@ async def get_update_skips(
                 get_skips,
                 splits,
                 ignored=ignored,
-                log_opts=log_opts
             )
         )
     )
-    return 'checks', corelib.task_map(corelib.coro_wrapper, iterable)
+    return 'checks', corelib.task_map(corelib.AsyncIterator, iterable)
 
 
-@logger.logged
 @corelib.inject_loop
 async def get_coro_data(
     type_: str,
@@ -362,8 +320,6 @@ async def get_coro_data(
     index: typing.Union[str, typing.List[str]],
     *,
     loop: asyncio.AbstractEventLoop,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Tuple[str, pandas.DataFrame]:
     collected = await data_coro
     return type_, await loop.run_in_executor(  # type: ignore
@@ -373,13 +329,11 @@ async def get_coro_data(
             collected,
             index=index,
             type_=type_,
-            log_opts=log_opts
         )
     )
 
 
 @corelib.inject_loop
-@logger.logged
 async def get_ins_upd_del(
     data_name: str,
     curr_coro: typing.Coroutine[typing.List[dict], None, None],
@@ -388,8 +342,6 @@ async def get_ins_upd_del(
     ignored: typing.Optional[typing.List[str]]=None,
     *,
     loop: asyncio.AbstractEventLoop,
-    log: logging.Logger,
-    log_opts: typing.Dict[str, str]
 ) -> typing.Dict[str, typing.Union[typing.List[dict], typing.List[str], str]]:
     """
     Universal tool for determining inserts/updates/deletes/skips.
@@ -429,10 +381,10 @@ async def get_ins_upd_del(
     )
 
     collected = {}
-    async for key, value in corelib.task_map(corelib.coro_wrapper, iterable):
+    async for key, value in corelib.task_map(corelib.AsyncIterator, iterable):
         collected[key] = value
 
-    log.info(
+    print(
         ' '.join((
             f'{data_name} Collected:',
             f'curr ({collected["current"].size});',
@@ -444,7 +396,6 @@ async def get_ins_upd_del(
         None,
         functools.partial(
             merge_entries,
-            log_opts=log_opts,
             **collected
         )
     )
@@ -459,7 +410,6 @@ async def get_ins_upd_del(
                 merged,
                 current_cols,
                 previous_cols,
-                log_opts=log_opts
             )
         ),
         loop.run_in_executor(  # type: ignore
@@ -469,7 +419,6 @@ async def get_ins_upd_del(
                 merged,
                 current_cols,
                 previous_cols,
-                log_opts=log_opts
             )
         ),
         get_update_skips(
@@ -477,20 +426,19 @@ async def get_ins_upd_del(
             current_cols,
             previous_cols,
             ignored=ignored,
-            log_opts=log_opts
         )
     )
 
     results = {}
 
-    async for key, value in corelib.task_map(corelib.coro_wrapper, iterable):
+    async for key, value in corelib.task_map(corelib.AsyncIterator, iterable):
         if key == 'checks':
             async for inner_key, inner_value in value:
                 results[inner_key] = inner_value
         else:
             results[key] = value
 
-    log.info(
+    print(
         ' '.join((
             f'{data_name} Processed:',
             f'ins ({results["inserts"].__len__()});',

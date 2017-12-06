@@ -2,6 +2,7 @@ from __future__ import generator_stop
 
 import asyncio
 import functools
+import pprint
 import typing
 
 import arrow
@@ -10,6 +11,7 @@ import gmusicapi
 from playlist.core import lib as corelib
 from playlist.sql import lib as sqllib
 from playlist.crypt import sync_lib as cryptlib
+from playlist.pd import lib as pdlib
 
 USERNAME = 'chill@darkhelm.org'
 
@@ -75,5 +77,10 @@ async def import_from_gpm(*, loop: asyncio.AbstractEventLoop) -> None:
     ]
     for task in asyncio.as_completed(tasks):
         print(await task)
+
+    curr_coro = loop.run_in_executor(None, sqllib.get_current_tracks)
+    prev_coro = loop.run_in_executor(None, sqllib.get_previous_tracks)
+    results = await pdlib.get_ins_upd_del('Tracks', curr_coro, prev_coro, 'id')
+    pprint.pprint(results)
 
 loop.run_until_complete(import_from_gpm())

@@ -38,6 +38,38 @@ def load_tracks(
 
 
 @conn.trackdb.sessionize()
+def get_current_tracks(*, session: sqlalchemy.orm.session.Session):
+    query = conn.bakery(lambda s: s.query(tables.trackdb.NewTracks))
+    return [
+        {
+            key: value
+            for key, value in row.__dict__.items()
+            if key in {
+                col.name
+                for col in tables.trackdb.NewTracks.__table__.c
+            }
+        }
+        for row in query(session)
+    ]
+
+
+@conn.trackdb.sessionize()
+def get_previous_tracks(*, session: sqlalchemy.orm.session.Session):
+    query = conn.bakery(lambda s: s.query(tables.trackdb.Tracks))
+    return [
+        {
+            key: value
+            for key, value in row.__dict__.items()
+            if key in {
+                col.name
+                for col in tables.trackdb.NewTracks.__table__.c
+            }
+        }
+        for row in query(session)
+    ]
+
+
+@conn.trackdb.sessionize()
 def set_password(username: str, password: str, *, session):
     creds = tables.trackdb.Credentials(username=username, password=password)
     print(creds)
